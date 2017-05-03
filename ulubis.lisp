@@ -120,6 +120,7 @@
 
 (defun window-event-handler ()
   (new-xkb-state *compositor*)
+  (resize-compositor)
   (setf (render-needed *compositor*) t))
 
 ;; Kludge for SDL backend on multi-desktop WMs to avoid sticky mods.
@@ -151,6 +152,32 @@
 			keysym
 			state))))
 
+(defun resize-compositor ()
+  (let ((size (cepl.host:window-size (cepl.context::window cepl.context:*gl-context*))))
+    (unless (and (equal size (cepl.viewports:viewport-dimensions (cepl.viewports:current-viewport)))
+                 (equal size (list (screen-width *compositor*)
+                                   (screen-height *compositor*))))
+      (format t "Using new screen size: ~A~%" size)
+      (setf (cepl.viewports:viewport-dimensions (cepl.viewports:current-viewport))
+            size)
+      (setf (screen-width *compositor*) (first size)
+            (screen-height *compositor*) (second size))
+      (mapc #'view-ensure-valid-fbo (views *compositor*)))))
+
+(defun perform-user-init ()
+  ;; Load user configuration file
+  (when (probe-file "~/.ulubis.lisp")
+    (let ((*package* (find-package :ulubis)))
+      (load "~/.ulubis.lisp")))
+  
+  ;; Ensure that there's at least one view
+  (when (zerop (length (views *compositor*)))
+    (push-view 'desktop-mode))
+
+  ;; Ensure that there's a current view
+  (unless (current-view *compositor*)
+    (setf (current-view *compositor*) (first (views *compositor*)))))
+
 (defun initialise ()
   (unwind-protect
        (block main-handler
@@ -164,25 +191,16 @@
 	 ;; Make our compositor class
 	 (setf *compositor* (make-instance 'compositor))
 	 
-	 (when (probe-file "~/.ulubis.lisp")
-	   (load "~/.ulubis.lisp"))
-	 
 	 ;; Initialise backend
 	 (setf (backend *compositor*) (make-instance 'backend))
 	 (initialise-backend (backend *compositor*)
-			     (screen-width *compositor*)
-			     (screen-height *compositor*)
-			     (devices *compositor*))
-	 
-	 ;; ulubis will attempt to run the function STARTUP
-	 ;; This should be defined in the user's ~/.ulubis.lisp
-	 ;; And is intended to set up things like the number
-	 ;; of virtual desktops (views), etc.
-	 (handler-case (startup)
-	   (undefined-function ()
-	     (push-view 'desktop-mode)
-	     (setf (current-view *compositor*) (first (views *compositor*)))))
-	 
+                             640
+                             480
+                             (devices *compositor*))
+         (resize-compositor)
+
+         (perform-user-init)
+
 	 (register-mouse-motion-handler (backend *compositor*) 'call-mouse-motion-handler)
 	 (register-mouse-button-handler (backend *compositor*) 'call-mouse-button-handler)
 	 (register-window-event-handler (backend *compositor*) 'window-event-handler)

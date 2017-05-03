@@ -10,7 +10,6 @@
    (focus-follows-mouse :accessor focus-follows-mouse :initarg :focus-follows-mouse :initform nil)))
 
 (defmethod init-mode ((mode desktop-mode))
-  (setf *ortho* (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1))
   (cepl:map-g #'mapping-pipeline nil)
   (setf (render-needed *compositor*) t))
 
@@ -265,9 +264,10 @@
 
 (defmethod render ((mode desktop-mode) &optional view-fbo)
   (apply #'gl:clear-color (clear-color mode))
-  (when view-fbo
-    (cepl:clear view-fbo))
-  (cepl:with-blending (blending-parameters mode)
-    (mapcar (lambda (surface)
-	      (render surface view-fbo))
-	    (reverse (surfaces (view mode))))))
+  (let ((*ortho* (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
+    (when view-fbo
+      (cepl:clear view-fbo))
+    (cepl:with-blending (blending-parameters mode)
+      (mapcar (lambda (surface)
+                (render surface view-fbo))
+              (reverse (surfaces (view mode)))))))

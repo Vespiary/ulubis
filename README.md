@@ -37,26 +37,14 @@ Ulubis looks for the file `~/.ulubis.lisp` and loads it if it exists.
 An example configuration is as follows:
 
 ```
-(in-package :ulubis)
-
-(if (string-equal (symbol-name ulubis-backend:backend-name) "backend-drm-gbm")
-    (progn
-      (setf (screen-width *compositor*) 1440)
-      (setf (screen-height *compositor*) 900))
-    (progn
-      (setf (screen-width *compositor*) 900)
-      (setf (screen-height *compositor*) 600)))
-
 (set-keymap *compositor* "evdev" "apple" "gb" "" "")
 
-(defun startup ()
-  (swank-loader:init)
-  (swank:create-server :port 4005 :style :spawn :dont-close t)
-  (swank:set-package "ULUBIS")
+(swank-loader:init)
+(swank:create-server :port 4005 :style :spawn :dont-close t)
+(swank:set-package "ULUBIS")
 
-  ;; Add 4 views (virtual desktops) using the desktop-mode as default
-  (loop :for i :from 0 :to 3 :do (push-view 'desktop-mode))
-  (setf (current-view *compositor*) (first (views *compositor*))))
+;; Add 4 views (virtual desktops) using the desktop-mode as default
+(loop :repeat 4 :do (push-view 'desktop-mode))
 
 ```
 

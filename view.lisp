@@ -27,10 +27,26 @@
    (fbo-sample :accessor fbo-sample :initarg :fbo-sample :initform nil)))
 
 (defmethod init-view ((view view) &key)
-  (let ((fbo (cepl:make-fbo (list 0 :dimensions (list (screen-width *compositor*) (screen-height *compositor*))))))
-    (setf (fbo view) fbo)
-    (setf (fbo-sample view) (cepl:sample (cepl:attachment-tex fbo 0)))
-    (setf (cepl:blending-params fbo) (cepl:make-blending-params))))
+  (view-ensure-valid-fbo view))
+
+(defun view-ensure-valid-fbo (view)
+  "Recreate the FBO if it's too small for the current screen.
+Having an FBO which is too big doesn't seem to affect anything
+except a few kbytes of wasted memory."
+  (let ((new-size (list (screen-width *compositor*)
+                        (screen-height *compositor*))))
+    (labels ((make-fbo ()
+               (let ((fbo (cepl:make-fbo (list 0 :dimensions new-size))))
+                 (setf (fbo view) fbo)
+                 (setf (fbo-sample view) (cepl:sample (cepl:attachment-tex fbo 0)))
+                 (setf (cepl:blending-params fbo) (cepl:make-blending-params)))))
+      (if (fbo view)
+          (let ((old-size (cepl:dimensions (cepl:attachment (fbo view) 0))))
+            (when (or (> (first new-size) (first old-size))
+                      (> (second new-size) (second old-size)))
+              (cepl:free (fbo view))
+              (make-fbo)))
+          (make-fbo)))))
 
 ;; When a surface is created, it should call add-surface with the
 ;; current view
