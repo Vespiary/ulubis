@@ -164,12 +164,23 @@
             (screen-height *compositor*) (second size))
       (mapc #'view-ensure-valid-fbo (views *compositor*)))))
 
+(defun try-load-user-init-file (filename)
+  (format t "Trying to load ~A~%" filename)
+  (when (probe-file filename)
+    (format t "Loading ~A~%" filename)
+    (let ((*package* (find-package :ulubis)))
+      (load filename))))
+
 (defun perform-user-init ()
   ;; Load user configuration file
-  (when (probe-file "~/.ulubis.lisp")
-    (let ((*package* (find-package :ulubis)))
-      (load "~/.ulubis.lisp")))
-  
+  ;; Look for ulubis/init.lisp in xdg configuration dirs (home first)
+  ;; Failing that try to load ~/.ulubis.lisp
+  (unless (some #'try-load-user-init-file
+                `(,(uiop:xdg-config-home "ulubis/init.lisp")
+                  ,@(uiop:xdg-config-dirs "ulubis/init.lisp")
+                  ,(uiop:merge-pathnames* ".ulubis.lisp" (user-homedir-pathname))))
+    (format t "No configuration file found!~%"))
+
   ;; Ensure that there's at least one view
   (when (zerop (length (views *compositor*)))
     (push-view 'desktop-mode))
