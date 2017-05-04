@@ -1,6 +1,7 @@
 
 (in-package :ulubis)
 
+(defparameter *enable-debugger* nil)
 (defparameter *compositor* nil)
 
 (defun draw-screen ()
@@ -192,11 +193,19 @@
 (defun initialise ()
   (unwind-protect
        (block main-handler
-	 (handler-bind ((error #'(lambda (e)
-				   (format t "~%Oops! Something went wrong with ulubis...we throw ourselves at your mercy! Exiting wih error:~%")
-				   (trivial-backtrace:print-backtrace e)
-				   (return-from main-handler))))
-	 #+sbcl
+         (handler-bind (#+sbcl
+                        (sb-sys:interactive-interrupt
+                         #'(lambda (e)
+                             (format t "Caught SIGINT. Exiting")
+                             (return-from main-handler)))
+                        (error
+                         #'(lambda (e)
+                             (when *enable-debugger*
+                               (invoke-debugger e))
+                             (format t "~%Oops! Something went wrong with ulubis...we throw ourselves at your mercy! Exiting wih error:~%")
+                             (trivial-backtrace:print-backtrace e)
+                             (return-from main-handler))))
+         #+sbcl
 	 (sb-int:set-floating-point-modes :traps nil)
 	 
 	 ;; Make our compositor class
@@ -310,6 +319,6 @@
       (setf (display *compositor*) nil))
     (destroy-backend (backend *compositor*))
     (setf *compositor* nil)))
-  
+
 (defun run-compositor ()
   (initialise))
