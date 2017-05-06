@@ -120,7 +120,6 @@
   (mouse-button-handler (current-mode (current-view *compositor*)) time button state))
 
 (defun window-event-handler ()
-  (new-xkb-state *compositor*)
   (resize-compositor)
   (setf (render-needed *compositor*) t))
 
@@ -130,28 +129,24 @@
 (defvar *depressed-keys* (list))
 
 (defun call-keyboard-handler (time keycode state)
-  (let ((keysym (xkb:xkb-state-key-get-one-sym (xkb-state *compositor*) (+ keycode 8))))
-    (format t "Keycode: ~A, Keysym: ~A, state: ~A~%" keycode keysym state)
-    (if (and (= state 1)
-	     (member keycode *depressed-keys*))
-	(progn
-	  ;;(format t "!!! Not updating key state~%")
-	  )
-	(xkb:xkb-state-update-key (xkb-state *compositor*) (+ keycode 8) state))
-    (if (= state 1)
-	(push keycode *depressed-keys*)
-	(setf *depressed-keys* (delete keycode *depressed-keys*)))
-    (setf (mods-depressed *compositor*) (xkb:xkb-state-serialize-mods (xkb-state *compositor*) 1))
-    ;; (format t "Mods: ~A~%" (mods-depressed *compositor*))
-    (setf (mods-latched *compositor*) (xkb:xkb-state-serialize-mods (xkb-state *compositor*) 2))
-    (setf (mods-locked *compositor*) (xkb:xkb-state-serialize-mods (xkb-state *compositor*) 4))
-    (setf (mods-group *compositor*) (xkb:xkb-state-serialize-layout (xkb-state *compositor*) 64))
-    (when (and (numberp keysym) (numberp state))
-      (keyboard-handler (current-mode (current-view *compositor*))
-			time
-			keycode
-			keysym
-			state))))
+  (with-slots (xkb-input xkb-keybinds) *compositor*
+    (ulubis.xkb:update-key xkb-input keycode state)
+    (ulubis.xkb:update-key xkb-keybinds keycode state)
+    (let ((keysym (ulubis.xkb:last-pressed-key xkb-keybinds)))
+      (setf (mods-depressed *compositor*) (ulubis.xkb:serialize-mods (xkb-input *compositor*) 1))
+      (when (= state 1)
+        (format t "Keycode: ~A; Keysym: ~A; Mods: ~A~%" keycode keysym (mods-depressed *compositor*)))
+      (setf (mods-latched *compositor*) (ulubis.xkb:serialize-mods (xkb-input *compositor*) 2))
+      (setf (mods-locked *compositor*) (ulubis.xkb:serialize-mods (xkb-input *compositor*) 4))
+      (setf (mods-group *compositor*) (ulubis.xkb:serialize-layout (xkb-input *compositor*) 64))
+      (when (and (numberp keysym) (numberp state))
+        (unless (keyboard-keybinds-handler (current-mode (current-view *compositor*))
+                                          keysym
+                                          state)
+          (keyboard-handler (current-view *compositor*)
+                            time
+                            keycode
+                            state))))))
 
 (defun resize-compositor ()
   (let ((size (cepl.host:window-size (cepl.context::window cepl.context:*gl-context*))))

@@ -32,31 +32,25 @@
    (pointer-y :accessor pointer-y :initarg :pointer-y :initform 0)
    (data-devices :accessor data-devices :initarg :data-devices :initform nil)
    (render-needed :accessor render-needed :initarg :render-needed :initform nil)
-   (xkb-context :accessor xkb-context :initarg :xkb-context :initform nil)
-   (xkb-state :accessor xkb-state :initarg :xkb-state :initform nil)
-   (xkb-keymap :accessor xkb-keymap :initarg :xkb-keymap :initform nil)
+   (xkb-input :accessor xkb-input :initarg :xkb-state :initform nil)
+   (xkb-keybinds :accessor xkb-keybinds :initarg :xkb-state :initform nil)
    (mods-depressed :accessor mods-depressed :initarg :mods-depressed :initform 0)
    (mods-latched :accessor mods-latched :initarg :mods-latched :initform 0)
    (mods-locked :accessor mods-locked :initarg :mods-locked :initform 0)
    (mods-group :accessor mods-group :initarg :mods-group :initform 0)))
 
 (defmethod initialize-instance :after ((compositor compositor) &key)
-  (setf (xkb-context compositor) (xkb:xkb-context-new 0))
-  (setf (xkb-keymap compositor) (xkb:new-keymap-from-names (xkb-context compositor) "evdev" "apple" "gb" "" ""))
-  (setf (xkb-state compositor) (xkb:xkb-state-new (xkb-keymap compositor))))
+  (setf (xkb-input compositor) (ulubis.xkb:get-state :layout "gb"))
+  (setf (xkb-keybinds compositor) (ulubis.xkb:get-state :layout "gb")))
 	   
 (defun set-keymap (compositor r m l v o)
-  (setf (xkb-context compositor) (xkb:xkb-context-new 0))
-  (setf (xkb-keymap compositor) (xkb:new-keymap-from-names (xkb-context compositor) r m l v o))
-  (setf (xkb-state compositor) (xkb:xkb-state-new (xkb-keymap compositor))))
-
-(defun new-xkb-state (compositor)
-  (when (xkb-state compositor)
-    (xkb:xkb-state-unref (xkb-state compositor)))
-  (setf (xkb-state compositor) (xkb:xkb-state-new (xkb-keymap compositor))))
+  (setf (xkb-input compositor)
+        (ulubis.xkb:get-state :layout l
+                              :variant v
+                              :options o)))
 
 (defun get-keymap (compositor)
-  (let* ((string (xkb:xkb-keymap-get-as-string (xkb-keymap compositor) 1)) ;; 1 == XKB_KEYMAP_FORMAT_TEXT_V!
+  (let* ((string (ulubis.xkb:state-keymap-name (xkb-input compositor)))
 	 (size (+ (length string) 1))
 	 (xdg-runtime-dir (nix:getenv "XDG_RUNTIME_DIR"))
 	 (fd (nix:mkstemp (concatenate 'string xdg-runtime-dir "/XXXXXXXX"))))

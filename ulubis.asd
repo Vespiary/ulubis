@@ -21,6 +21,7 @@
 	       (:file "animation")
 	       (:file "package")
                (:file "cairo-surface")
+	       (:file "ulubis-xkb")
 	       (:file "ianimatable")
 	       ;; (:file "isurface")
 	       (:file "client")
@@ -51,5 +52,6 @@
 	       (:file "desktop-mode")
 	       (:file "alt-tab-mode")
 	       (:file "ulubis")
+               (:file "ulubis-config")
 	       (:file "install")))
 
