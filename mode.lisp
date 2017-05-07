@@ -98,7 +98,7 @@
             (format t "Calling pressed~%")
             (cancel-mods surface)
             (funcall fn mode)
-            t)
+            (return-from keyboard-keybinds-handler t))
            ((and (eq op :released)
                  (= 0 state)
                  (or (not key) (and keysym (= keysym key) (= state 0)))
@@ -106,9 +106,8 @@
             (format t "Calling released~%")
             (cancel-mods surface)
             (funcall fn mode)
-            t)
-           (t
-            nil))))))
+            (return-from keyboard-keybinds-handler t)))))
+    nil))
 
 (defmethod keyboard-handler (view time keycode state)
   (let ((surface (active-surface view)))

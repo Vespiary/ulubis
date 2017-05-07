@@ -49,6 +49,8 @@
       (ulubis.xkb:free xkb-input))
     (setf xkb-input
           (make-instance 'ulubis.xkb:state
+                         :rules r
+                         :model m
                          :layout l
                          :variant v
                          :options o))))

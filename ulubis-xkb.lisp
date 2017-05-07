@@ -9,11 +9,11 @@
    (depressed-keys :initform nil)
    (last-pressed-key :reader last-pressed-key :initform nil)))
 
-(defmethod initialize-instance ((state state) &key (layout "us") (variant "") (options "") &allow-other-keys)
+(defmethod initialize-instance ((state state) &key (rules "") (model "") (layout "us") (variant "") (options "") &allow-other-keys)
   (call-next-method)
   (ensure-context)
   (with-slots (xkb-keymap xkb-state) state
-    (setf xkb-keymap (xkb:new-keymap-from-names *context* "" "" layout variant options))
+    (setf xkb-keymap (xkb:new-keymap-from-names *context* rules model layout variant options))
     (setf xkb-state (xkb:xkb-state-new xkb-keymap))))
 
 (defun ensure-context ()
