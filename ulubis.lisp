@@ -31,7 +31,7 @@
     (wl-event-loop-add-fd event-loop libinput-fd 1 (callback input-callback) (null-pointer))
     (event-loop-add-drm-fd (backend *compositor*) event-loop)
     (loop :while (running *compositor*)
-       :do (progn
+       :do (with-simple-restart (skip-event "Skip handling this event")
 	     (when (and (render-needed *compositor*) (not (get-scheduled (backend *compositor*))))
 	       (draw-screen))
 	     (wl-display-flush-clients (display *compositor*))
@@ -44,7 +44,7 @@
 			   (wayland-pollfd wayland-fd syscall:pollin syscall:pollpri))
       (initialize-animation event-loop)
       (loop :while (running *compositor*)
-	 :do (progn
+	 :do (with-simple-restart (skip-event "Skip handling this event")
 	       (when (render-needed *compositor*)
 		 (draw-screen))
 	       (wl-event-loop-dispatch event-loop 0)

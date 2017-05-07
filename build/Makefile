@@ -6,3 +6,7 @@ ulubis-sdl: build-ulubis-sdl.sh ../*.lisp ../*.asd
 
 ulubis: build-ulubis-drm-gbm.sh ../*.lisp ../*.asd
 	./build-ulubis-drm-gbm.sh
+
+clean:
+	-rm build/ulubis
+	-rm build/ulubis-sdl
