@@ -94,7 +94,7 @@
            ((and (eq op :pressed)
                   (or (not keysym) (= keysym key))
                   (= 1 state)
-                  (or (zerop mods) (= (mods-depressed *compositor*) mods)))
+                  (or (zerop mods) (= (mods-depressed (mods *compositor*)) mods)))
             (format t "Calling pressed~%")
             (cancel-mods surface)
             (funcall fn mode)
@@ -102,7 +102,7 @@
            ((and (eq op :released)
                  (= 0 state)
                  (or (not key) (and keysym (= keysym key) (= state 0)))
-                 (zerop (logand (mods-depressed *compositor*) mods)))
+                 (zerop (logand (mods-depressed (mods *compositor*)) mods)))
             (format t "Calling released~%")
             (cancel-mods surface)
             (funcall fn mode)
@@ -115,11 +115,8 @@
     (when (and surface keycode (keyboard (client surface)))
       (wl-keyboard-send-key (->resource (keyboard (client surface))) 0 time keycode state))
     (when (and surface (keyboard (client surface)))
-      (wl-keyboard-send-modifiers (->resource (keyboard (client surface))) 0
-				  (mods-depressed *compositor*)
-				  (mods-latched *compositor*)
-				  (mods-locked *compositor*)
-				  (mods-group *compositor*)))))
+      (apply #'wl-keyboard-send-modifiers (->resource (keyboard (client surface))) 0
+             (mods *compositor*)))))
 
 (defmethod first-commit ((mode mode) surface)
   )

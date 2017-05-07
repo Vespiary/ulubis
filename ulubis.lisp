@@ -99,14 +99,9 @@
 |#
 
 (defun activate-surface (surface mode)
-  (with-slots (view) mode
-    (with-slots (active-surface) view
-      (setf active-surface
-	    (activate surface active-surface
-		      (list (mods-depressed *compositor*)
-			    (mods-latched *compositor*)
-			    (mods-locked *compositor*)
-			    (mods-group *compositor*)))))))
+  (with-slots (active-surface) (view mode)
+    (setf active-surface
+          (activate surface active-surface (mods *compositor*)))))
 
 (defun call-mouse-motion-handler (time x y)
   (when (show-cursor *compositor*)
@@ -133,13 +128,12 @@
     (ulubis.xkb:update-key xkb-input keycode state)
     (ulubis.xkb:update-key xkb-keybinds keycode state)
     (let ((keysym (ulubis.xkb:last-pressed-key xkb-keybinds)))
-      (setf (mods-depressed *compositor*) (ulubis.xkb:serialize-mods (xkb-input *compositor*) 1))
+      (setf (mods *compositor*) (ulubis.xkb:serialize-mods (xkb-input *compositor*)))
       (when (= state 1)
-        (format t "Keycode: ~A; Keysym: ~A; Mods: ~A~%" keycode keysym (mods-depressed *compositor*)))
-      (setf (mods-latched *compositor*) (ulubis.xkb:serialize-mods (xkb-input *compositor*) 2))
-      (setf (mods-locked *compositor*) (ulubis.xkb:serialize-mods (xkb-input *compositor*) 4))
-      (setf (mods-group *compositor*) (ulubis.xkb:serialize-layout (xkb-input *compositor*) 64))
+        (format t "Keycode: ~A; Keysym: ~A; Mods: ~A~%"
+                keycode keysym (mods-depressed (mods *compositor*))))
       (when (and (numberp keysym) (numberp state))
+        ;; Send to the active client unless handled by Ulubis
         (unless (keyboard-keybinds-handler (current-mode (current-view *compositor*))
                                           keysym
                                           state)

@@ -104,7 +104,7 @@
 
 (defmethod mouse-button-handler ((mode desktop-mode) time button state)
   ;; 1. Change (possibly) the active surface
-  (when (and (= button #x110) (= state 1) (= 0 (mods-depressed *compositor*)))
+  (when (and (= button #x110) (= state 1) (= 0 (mods-depressed (mods *compositor*))))
     (let ((surface (surface-under-pointer (pointer-x *compositor*) (pointer-y *compositor*) (view mode))))
       ;; When we click on a client which isn't the first client
       (when (and surface (not (equalp surface (active-surface (view mode)))))
@@ -117,7 +117,7 @@
 	(setf (render-needed *compositor*) t))))
   
   ;; Drag window
-  (when (and (= button #x110) (= state 1) (= Gui (mods-depressed *compositor*)))
+  (when (and (= button #x110) (= state 1) (= Gui (mods-depressed (mods *compositor*))))
     (let ((surface (surface-under-pointer (pointer-x *compositor*) (pointer-y *compositor*) (view mode))))
       (when surface
 	(setf (moving-surface *compositor*) ;;surface))))
@@ -132,7 +132,7 @@
     (setf (moving-surface *compositor*) nil))
 
   ;; Resize window
-  (when (and (= button #x110) (= state 1) (= (+ Gui Shift) (mods-depressed *compositor*)))
+  (when (and (= button #x110) (= state 1) (= (+ Gui Shift) (mods-depressed (mods *compositor*))))
     (let ((surface (surface-under-pointer (pointer-x *compositor*) (pointer-y *compositor*) (view mode))))
       (let ((width (if (input-region (wl-surface surface))
 		       (width (first (last (rects (input-region (wl-surface surface))))))

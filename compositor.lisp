@@ -34,20 +34,24 @@
    (render-needed :accessor render-needed :initarg :render-needed :initform nil)
    (xkb-input :accessor xkb-input :initarg :xkb-state :initform nil)
    (xkb-keybinds :accessor xkb-keybinds :initarg :xkb-state :initform nil)
-   (mods-depressed :accessor mods-depressed :initarg :mods-depressed :initform 0)
-   (mods-latched :accessor mods-latched :initarg :mods-latched :initform 0)
-   (mods-locked :accessor mods-locked :initarg :mods-locked :initform 0)
-   (mods-group :accessor mods-group :initarg :mods-group :initform 0)))
+   (mods :accessor mods :initarg :mods :initform 0)))
+
+(defstruct (mods (:type list))
+  depressed latched locked layout)
 
 (defmethod initialize-instance :after ((compositor compositor) &key)
-  (setf (xkb-input compositor) (ulubis.xkb:get-state :layout "gb"))
-  (setf (xkb-keybinds compositor) (ulubis.xkb:get-state :layout "gb")))
+  (setf (xkb-keybinds compositor) (make-instance 'ulubis.xkb:state :layout "us"))
+  (setf (xkb-input compositor) (make-instance 'ulubis.xkb:state :layout "us")))
 	   
 (defun set-keymap (compositor r m l v o)
-  (setf (xkb-input compositor)
-        (ulubis.xkb:get-state :layout l
-                              :variant v
-                              :options o)))
+  (with-slots (xkb-input) compositor
+    (when xkb-input
+      (ulubis.xkb:free xkb-input))
+    (setf xkb-input
+          (make-instance 'ulubis.xkb:state
+                         :layout l
+                         :variant v
+                         :options o))))
 
 (defun get-keymap (compositor)
   (let* ((string (ulubis.xkb:state-keymap-name (xkb-input compositor)))

@@ -16,8 +16,6 @@
   (:export #:push-view
            #:desktop-mode
            #:defkeybinding
-           #:set-keymap
-           #:*compositor*
            #:alt
            #:shift
            #:ctrl
@@ -25,7 +23,8 @@
 
 (defpackage :ulubis.xkb
   (:use :common-lisp)
-  (:export :get-state
+  (:export :state
+           :free
            :state-keymap-name
            :update-key
            :last-pressed-key
@@ -39,7 +38,6 @@
                 #:push-view
                 #:desktop-mode
                 #:defkeybinding
-                #:*compositor*
                 #:alt
                 #:shift
                 #:ctrl
