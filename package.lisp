@@ -13,3 +13,7 @@
 	:waylisp
 	:ulubis-backend
 	:animation))
+
+(defpackage :ulubis.wmii
+  (:use :common-lisp)
+  (:export :layout))

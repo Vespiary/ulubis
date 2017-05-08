@@ -49,6 +49,8 @@
 	       (:file "mode")
 	       (:file "view")
 	       (:file "desktop-mode")
+	       (:file "wmii-mode")
+	       (:file "wmii-mode-layout")
 	       (:file "alt-tab-mode")
 	       (:file "ulubis")
 	       (:file "install")))
