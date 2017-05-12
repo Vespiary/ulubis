@@ -197,7 +197,7 @@
         (push item windows)
         (insert-afterf windows active-window item))))
 
-(defmethod remove-window ((item surface) (target column))
+(defmethod remove-window ((item isurface) (target column))
   (remove-window (find item (active-windows target) :key #'surface)
                  target))
 

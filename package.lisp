@@ -12,8 +12,19 @@
 	:zxdg-shell-v6-server-protocol
 	:waylisp
 	:ulubis-backend
-	:animation))
+	:animation)
+   ;; Interface for modes
+  (:export #:mode
+           #:defmode
+           #:init-mode
+           #:render
+           #:first-commit
+           #:mouse-motion-handler
+           #:mouse-button-handler))
 
 (defpackage :ulubis.wmii
-  (:use :common-lisp)
-  (:export :layout))
+  (:use :common-lisp
+        :waylisp
+        :ulubis)
+  (:export #:wmii-mode))
+

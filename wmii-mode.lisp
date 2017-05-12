@@ -13,23 +13,6 @@
   (cepl:map-g #'mapping-pipeline nil)
   (setf (render-needed *compositor*) t))
 
-(defun move-surface (x y move-op)
-  "Move surface to location X and Y given the MOVE-OP"
-  (let ((surface (move-op-surface move-op)))
-    (setf (x surface) (round (+ (move-op-surface-x move-op) (- x (move-op-pointer-x move-op)))))
-    (setf (y surface) (round (+ (move-op-surface-y move-op) (- y (move-op-pointer-y move-op)))))
-    (setf (render-needed *compositor*) t)))
-
-(defun resize-surface (x y view resize-op)
-  "Resize surface given new pointer location (X,Y) and saved information in RESIZE-OP"
-  (let* ((saved-width (resize-op-surface-width resize-op))
-	 (saved-height (resize-op-surface-height resize-op))
-	 (saved-pointer-x (resize-op-pointer-x resize-op))
-	 (saved-pointer-y (resize-op-pointer-y resize-op))
-	 (delta-x (- x saved-pointer-x))
-	 (delta-y (- y saved-pointer-y)))
-    (resize-surface-absolute (resize-op-surface resize-op) view (+ saved-width delta-x) (+ saved-height delta-y))))
-
 (defun pointer-changed-surface (mode x y old-surface new-surface)
   (setf (cursor-surface *compositor*) nil)
   ;; (format t "Pointer changed service~%")
@@ -104,51 +87,6 @@
   (setf (origin-x surface) 0)
   (setf (origin-y surface) 0)
   (activate-surface surface mode))
-
-(cepl:defun-g wmii-mode-vertex-shader ((vert cepl:g-pt) &uniform (origin :mat4) (origin-inverse :mat4) (surface-scale :mat4) (surface-translate :mat4))
-  (values (* *ortho* surface-translate origin-inverse surface-scale origin (cepl:v! (cepl:pos vert) 1))
-	  (:smooth (cepl:tex vert))))
-
-(cepl:def-g-> mapping-pipeline ()
-  (desktop-mode-vertex-shader cepl:g-pt) (default-fragment-shader :vec2))
-
-(defmethod render ((surface isurface) &optional view-fbo)
-  (when (texture (wl-surface surface))
-    (with-rect (vertex-stream (width (wl-surface surface)) (height (wl-surface surface)))
-      (let ((texture (texture-of surface)))
-	(gl:viewport 0 0 (screen-width *compositor*) (screen-height *compositor*))
-	(map-g-default/fbo view-fbo #'mapping-pipeline vertex-stream
-			   :origin (m4:translation (cepl:v! (- (origin-x surface)) (- (origin-y surface)) 0))
-			   :origin-inverse (m4:translation (cepl:v! (origin-x surface) (origin-y surface) 0))
-			   :surface-scale (m4:scale (cepl:v! (scale-x surface) (scale-y surface) 1.0))
-			   :surface-translate (m4:translation (cepl:v! (x surface) (y surface) 0.0))
-			   :texture texture
-			   :alpha (opacity surface))))
-    (loop :for subsurface :in (reverse (subsurfaces (wl-surface surface)))
-       :do (render subsurface view-fbo))))
-
-(defmethod render ((surface wl-subsurface) &optional view-fbo)
-  (when (texture (wl-surface surface))
-    (with-rect (vertex-stream (width (wl-surface surface)) (height (wl-surface surface)))
-      (let ((texture (texture-of surface)))
-	(gl:viewport 0 0 (screen-width *compositor*) (screen-height *compositor*))
-	(map-g-default/fbo view-fbo #'mapping-pipeline vertex-stream
-			   :origin (m4:translation (cepl:v! (+ (x surface) (- (origin-x (role (parent surface)))))
-							    (+ (y surface) (- (origin-y (role (parent surface)))))
-							    0))
-			   :origin-inverse (m4:translation (cepl:v! (+ (- (x surface)) (origin-x (role (parent surface))))
-								    (+ (- (y surface)) (origin-y (role (parent surface))))
-								    0))
-			   :surface-scale (m4:scale (cepl:v! (scale-x (role (parent surface)))
-							     (scale-y (role (parent surface)))
-							     1.0))
-			   :surface-translate (m4:translation (cepl:v! (+ (x (role (parent surface))) (x surface))
-								       (+ (y (role (parent surface))) (y surface))
-								       0.0))
-			   :texture texture
-			   :alpha (opacity surface))))
-    (loop :for subsurface :in (reverse (subsurfaces (wl-surface surface)))
-       :do (render subsurface view-fbo))))
 
 (defmethod render ((mode wmii-mode) &optional view-fbo)
   (apply #'gl:clear-color (clear-color mode))
