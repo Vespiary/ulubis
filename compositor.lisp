@@ -22,8 +22,6 @@
    (ortho :accessor ortho :initform (ortho 0 1 1 0 1 -1))
    (views :accessor views :initarg :views :initform nil) ;; e.g. virtual desktops
    (current-view :accessor current-view :initarg current-view :initform nil)
-   (surfaces :accessor surfaces :initarg :surfaces :initform nil)
-   (clients :accessor clients :initarg :clients :initform nil)
    (moving-surface :accessor moving-surface :initarg :moving-surface :initform nil)
    (resizing-surface :accessor resizing-surface :initarg :resizing-surface :initform nil)
    (pointer-surface :accessor pointer-surface :initarg :pointer-surface :initform nil)
@@ -126,8 +124,7 @@
     (loop :for view :in views :do (remove-surface-from-view surface view))
     ;; TODO do we need to do the same for MOVING-SURFACE and RESIZING-SURFACE
     (when (equalp surface (pointer-surface *compositor*))
-      (setf (pointer-surface *compositor*) nil))
-    (setf (surfaces compositor) (remove surface (surfaces compositor)))))
+      (setf (pointer-surface *compositor*) nil))))
 
 (defun raise-surface (surface view)
   (when surface

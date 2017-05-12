@@ -2,6 +2,7 @@
 (in-package :ulubis)
 
 (def-wl-callback set-title (client toplevel (title :string))
+  (setf (title toplevel) title)
   (format t "Setting title of ~A to ~A~%" toplevel title))
 
 (def-wl-callback move (client toplevel (seat :pointer) (serial :uint32))
@@ -26,7 +27,8 @@
   ((:move move)
    (:destroy zxdg-toplevel-destroy)
    (:set-title set-title))
-  ((zxdg-surface-v6 :accessor zxdg-surface-v6 :initarg :zxdg-surface-v6 :initform nil)))
+  ((zxdg-surface-v6 :accessor zxdg-surface-v6 :initarg :zxdg-surface-v6 :initform nil)
+   (title :accessor title :initform "")))
 
 (defmethod activate ((surface zxdg-toplevel-v6) active-surface mods)
   (call-next-method)

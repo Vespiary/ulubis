@@ -14,6 +14,17 @@
       (zxdg-toplevel-v6-send-configure (->resource toplevel) 0 0 array)
       (zxdg-surface-v6-send-configure (->resource zxdg-surface) 0))))
 
+(defstruct (window-geometry
+             (:constructor make-window-geometry (x y w h)))
+  (x 0)
+  (y 0)
+  (w 1)
+  (h 1))
+
+(def-wl-callback set-window-geometry (client zxdg-surface (x :int32) (y :int32) (w :int32) (h :int32))
+  (setf (window-geometry zxdg-surface) (make-window-geometry x y w h)))
+
 (defimplementation zxdg-surface-v6 (isurface)
-  ((:get-toplevel get-toplevel))
-  ())
+  ((:get-toplevel get-toplevel)
+   (:set-window-geometry set-window-geometry))
+  ((window-geometry :accessor window-geometry :initform (list 0 0 1 1))))
