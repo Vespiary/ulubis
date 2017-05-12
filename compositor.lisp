@@ -19,6 +19,7 @@
    (event-loop :accessor event-loop :initarg :event-loop :initform nil)
    (screen-width :accessor screen-width :initarg :screen-width :initform 640)
    (screen-height :accessor screen-height :initarg :screen-height :initform 480)
+   (ortho :accessor ortho :initform (ortho 0 1 1 0 1 -1))
    (views :accessor views :initarg :views :initform nil) ;; e.g. virtual desktops
    (current-view :accessor current-view :initarg current-view :initform nil)
    (surfaces :accessor surfaces :initarg :surfaces :initform nil)
@@ -34,14 +35,20 @@
    (render-needed :accessor render-needed :initarg :render-needed :initform nil)
    (xkb-input :accessor xkb-input :initarg :xkb-state :initform nil)
    (xkb-keybinds :accessor xkb-keybinds :initarg :xkb-state :initform nil)
-   (mods :accessor mods :initarg :mods :initform 0)))
+   (mods :accessor mods :initarg :mods :initform (make-mods))))
 
 (defstruct (mods (:type list))
-  depressed latched locked layout)
+  (depressed 0)
+  (latched 0)
+  (locked 0)
+  (layout 0))
 
 (defmethod initialize-instance :after ((compositor compositor) &key)
   (setf (xkb-keybinds compositor) (make-instance 'ulubis.xkb:state :layout "us"))
   (setf (xkb-input compositor) (make-instance 'ulubis.xkb:state :layout "us")))
+
+(defun update-ortho (compositor)
+  (setf (ortho compositor) (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
 	   
 (defun set-keymap (compositor r m l v o)
   (with-slots (xkb-input) compositor
@@ -197,3 +204,16 @@
 	((and (<= pointer-x (+ x half-width)) (>= pointer-y (+ y half-height)))
 	 :bottom-left)))))
 |#      
+
+;;; Changing views
+
+(defun nth-view (n)
+  "Sets active view clamping it to total number of views"
+  (let* ((views (views *compositor*))
+         (count (length views)))
+    (when (< n 0)
+      (setf n 0))
+    (when (>= n count)
+      (setf n (- count 1)))
+    (setf (current-view *compositor*) (nth n views)))
+  (setf (render-needed *compositor*) t))

@@ -32,7 +32,7 @@ For the SDL2 backend simply run `ulubis-sdl` when in X.
 
 ## Configuration
 
-Ulubis looks for the file `~/.ulubis.lisp` and loads it if it exists.
+Ulubis looks for the file ulubis/init.lisp in XDG config directories, or for `~/.ulubis.lisp` and loads the first one it finds.
 
 An example configuration is as follows:
 
@@ -45,6 +45,18 @@ An example configuration is as follows:
 
 ;; Add 4 views (virtual desktops) using the desktop-mode as default
 (loop :repeat 4 :do (push-view 'desktop-mode))
+
+(defkeybinding (:pressed "q" Ctrl Shift) () (desktop-mode)
+  (uiop:quit))
+
+(defkeybinding (:pressed "t" Ctrl Shift) () (desktop-mode)
+  (run-program "/usr/bin/weston-terminal"))
+
+(defkeybinding (:pressed "Right" Gui) (mode) (desktop-mode)
+  (next-view))
+
+(defkeybinding (:pressed "Left" Gui) (mode) (desktop-mode)
+  (prev-view))
 
 ```
 

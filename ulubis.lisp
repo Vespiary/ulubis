@@ -1,6 +1,8 @@
 
 (in-package :ulubis)
 
+(declaim (optimize (debug 3)))
+
 (defparameter *enable-debugger* nil)
 (defparameter *compositor* nil)
 
@@ -152,6 +154,7 @@
             size)
       (setf (screen-width *compositor*) (first size)
             (screen-height *compositor*) (second size))
+      (update-ortho *compositor*)
       (mapc #'view-ensure-valid-fbo (views *compositor*)))))
 
 (defun try-load-user-init-file (filename)

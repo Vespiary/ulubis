@@ -9,7 +9,8 @@
   (setf (committed surface) t)
   (create-texture surface)
   (when (and (buffer surface) (first-commit? surface))
-    (first-commit (current-mode (current-view *compositor*)) (role surface)))
+    (first-commit (current-mode (current-view *compositor*)) (role surface))
+    (setf (first-commit? surface) nil))
   (setf (render-needed *compositor*) t))
 
 (def-wl-callback attach (client surface (buffer :pointer) (x :int32) (y :int32))

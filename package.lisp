@@ -23,13 +23,14 @@
            #:mouse-button-handler
    ;; Interface for configs
            #:push-view
+           #:nth-view
            #:desktop-mode
            #:defkeybinding
            #:alt
            #:shift
            #:ctrl
            #:gui
-))
+           ))
 
 (defpackage :ulubis.wmii
   (:use :common-lisp

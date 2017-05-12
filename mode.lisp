@@ -6,7 +6,8 @@
 (in-package :ulubis)
 
 (defclass mode ()
-  ((blending-parameters :accessor blending-parameters :initarg :blending-parameters :initform nil)))
+  ((blending-parameters :accessor blending-parameters :initarg :blending-parameters :initform nil)
+   (focus-follows-mouse :accessor focus-follows-mouse :initarg :focus-follows-mouse :initform nil)))
 
 ;; We introduce defmode. Ideally we would just subclass mode,
 ;; but we'd like to a class allocated slot KEY-BINDINGS. We
@@ -29,6 +30,21 @@
 
 (defmethod init-mode :before ((mode mode))
   (setf (blending-parameters mode) (cepl:make-blending-params)))
+
+(defmethod first-commit ((mode mode) surface)
+  )
+
+(defun push-mode (view mode)
+  (setf (view mode) view)
+  (init-mode mode)
+  (push mode (modes view))
+  (setf (render-needed *compositor*) t))
+  
+(defun pop-mode (mode)
+  (with-slots (view) mode
+    (pop (modes view))))
+
+;;; Default keyboard handling
 
 (defclass key-binding ()
   ((op :accessor op :initarg :op :initform :pressed)
@@ -117,18 +133,81 @@
       (apply #'wl-keyboard-send-modifiers (->resource (keyboard (client surface))) 0
              (mods *compositor*)))))
 
-(defmethod first-commit ((mode mode) surface)
-  )
 
-(defmethod first-commit :after ((mode mode) surface)
-  (setf (first-commit? (wl-surface surface)) nil))
+;;; Default mouse handling
 
-(defun push-mode (view mode)
-  (setf (view mode) view)
-  (init-mode mode)
-  (push mode (modes view))
-  (setf (render-needed *compositor*) t))
-  
-(defun pop-mode (mode)
-  (with-slots (view) mode
-    (pop (modes view))))
+(defun pointer-changed-surface (mode x y old-surface new-surface)
+  (setf (cursor-surface *compositor*) nil)
+  ;; (format t "Pointer changed service~%")
+  (when (focus-follows-mouse mode)
+    (deactivate old-surface)) 
+  (when (and old-surface (pointer (client old-surface)))
+    (wl-pointer-send-leave (->resource (pointer (client old-surface)))
+			   0
+			   (->resource (wl-surface old-surface))))
+  (setf (pointer-surface *compositor*) new-surface)
+  (when (focus-follows-mouse mode)
+    (activate-surface new-surface mode))
+  (when (and new-surface (pointer (client new-surface)))
+    (wl-pointer-send-enter (->resource (pointer (client new-surface)))
+			   0
+			   (->resource (wl-surface new-surface))
+			   (round (* 256 (- x (x new-surface))))
+			   (round (* 256 (- y (y new-surface)))))))
+
+(defun send-surface-pointer-motion (x y time surface)
+  (when (and surface (pointer (client surface)))
+    (wl-pointer-send-motion (->resource (pointer (client surface)))
+			    time
+			    (round (* 256 (- x (x surface))))
+			    (round (* 256 (- y (y surface)))))
+    ;; Need to check client handles version 5
+    ;;(wl-pointer-send-frame (waylisp:->pointer (waylisp:client surface)))
+    ))
+
+(defun update-pointer (delta-x delta-y)
+  (with-slots (pointer-x pointer-y screen-width screen-height) *compositor*
+    (incf pointer-x delta-x)
+    (incf pointer-y delta-y)
+    (when (< pointer-x 0) (setf pointer-x 0))
+    (when (< pointer-y 0) (setf pointer-y 0))
+    (when (> pointer-x screen-width) (setf pointer-x screen-width))
+    (when (> pointer-y screen-height) (setf pointer-y screen-height))))
+
+(defmethod mouse-motion-handler ((mode mode) time delta-x delta-y)
+  ;; Update the pointer location
+  (with-slots (pointer-x pointer-y) *compositor*
+    (update-pointer delta-x delta-y)
+    (when (cursor-surface *compositor*)
+      (setf (render-needed *compositor*) t))
+    (let ((old-surface (pointer-surface *compositor*))
+	  (current-surface (surface-under-pointer pointer-x pointer-y (view mode))))
+      (cond
+	;; 1. If we are dragging a window...
+	((moving-surface *compositor*)
+	 (move-surface pointer-x pointer-y (moving-surface *compositor*)))
+	;; 2. If we are resizing a window...
+	((resizing-surface *compositor*)
+	 (resize-surface pointer-x pointer-y (view mode) (resizing-surface *compositor*)))
+	;; 3. The pointer has left the current surface
+	((not (equalp old-surface current-surface))
+	 (setf (cursor-surface *compositor*) nil)
+	 (pointer-changed-surface mode pointer-x pointer-y old-surface current-surface))
+	;; 4. Pointer is over previous surface
+	((equalp old-surface current-surface)
+	 (send-surface-pointer-motion pointer-x pointer-y time current-surface))))))
+
+(defmethod mouse-button-handler ((mode mode) time button state)
+  ;; Send active surface mouse button
+  (when (surface-under-pointer (pointer-x *compositor*)
+			       (pointer-y *compositor*)
+			       (view mode)) 
+    (let ((surface (surface-under-pointer (pointer-x *compositor*)
+			       (pointer-y *compositor*)
+			       (view mode)) ))
+      (when (and surface (pointer (client surface)))
+	(wl-pointer-send-button (->resource (pointer (client surface)))
+				0
+				time
+				button
+				state)))))

@@ -79,7 +79,9 @@ except a few kbytes of wasted memory."
 |#
 
 (defun push-view (default-mode)
-  (let ((view (make-instance 'view :default-mode (make-instance default-mode))))
+  (unless (listp default-mode)
+    (setf default-mode (list default-mode)))
+  (let ((view (make-instance 'view :default-mode (apply #'make-instance default-mode))))
     (setf (view (default-mode view)) view)
     (init-mode (default-mode view))
     (init-view view)
