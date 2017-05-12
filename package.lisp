@@ -20,7 +20,16 @@
            #:render
            #:first-commit
            #:mouse-motion-handler
-           #:mouse-button-handler))
+           #:mouse-button-handler
+   ;; Interface for configs
+           #:push-view
+           #:desktop-mode
+           #:defkeybinding
+           #:alt
+           #:shift
+           #:ctrl
+           #:gui
+))
 
 (defpackage :ulubis.wmii
   (:use :common-lisp
@@ -28,3 +37,23 @@
         :ulubis)
   (:export #:wmii-mode))
 
+(defpackage :ulubis.xkb
+  (:use :common-lisp)
+  (:export :state
+           :free
+           :state-keymap-name
+           :update-key
+           :last-pressed-key
+           :serialize-mods
+           :serialize-layout))
+
+(defpackage :ulubis.config
+  (:use :common-lisp)
+  (:import-from :ulubis
+                #:push-view
+                #:desktop-mode
+                #:defkeybinding
+                #:alt
+                #:shift
+                #:ctrl
+                #:gui))

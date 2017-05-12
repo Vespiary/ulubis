@@ -37,7 +37,7 @@ Ulubis looks for the file `~/.ulubis.lisp` and loads it if it exists.
 An example configuration is as follows:
 
 ```
-(set-keymap *compositor* "evdev" "apple" "gb" "" "")
+(set-keymap "evdev" "apple" "gb,de" "" "grp:alt_shift_toggle")
 
 (swank-loader:init)
 (swank:create-server :port 4005 :style :spawn :dont-close t)

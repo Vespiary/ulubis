@@ -1,6 +1,7 @@
 
 (in-package :ulubis)
 
+(defparameter *enable-debugger* nil)
 (defparameter *compositor* nil)
 
 (defun draw-screen ()
@@ -30,7 +31,7 @@
     (wl-event-loop-add-fd event-loop libinput-fd 1 (callback input-callback) (null-pointer))
     (event-loop-add-drm-fd (backend *compositor*) event-loop)
     (loop :while (running *compositor*)
-       :do (progn
+       :do (with-simple-restart (skip-event "Skip handling this event")
 	     (when (and (render-needed *compositor*) (not (get-scheduled (backend *compositor*))))
 	       (draw-screen))
 	     (wl-display-flush-clients (display *compositor*))
@@ -43,7 +44,7 @@
 			   (wayland-pollfd wayland-fd syscall:pollin syscall:pollpri))
       (initialize-animation event-loop)
       (loop :while (running *compositor*)
-	 :do (progn
+	 :do (with-simple-restart (skip-event "Skip handling this event")
 	       (when (render-needed *compositor*)
 		 (draw-screen))
 	       (wl-event-loop-dispatch event-loop 0)
@@ -98,14 +99,9 @@
 |#
 
 (defun activate-surface (surface mode)
-  (with-slots (view) mode
-    (with-slots (active-surface) view
-      (setf active-surface
-	    (activate surface active-surface
-		      (list (mods-depressed *compositor*)
-			    (mods-latched *compositor*)
-			    (mods-locked *compositor*)
-			    (mods-group *compositor*)))))))
+  (with-slots (active-surface) (view mode)
+    (setf active-surface
+          (activate surface active-surface (mods *compositor*)))))
 
 (defun call-mouse-motion-handler (time x y)
   (when (show-cursor *compositor*)
@@ -119,7 +115,6 @@
   (mouse-button-handler (current-mode (current-view *compositor*)) time button state))
 
 (defun window-event-handler ()
-  (new-xkb-state *compositor*)
   (resize-compositor)
   (setf (render-needed *compositor*) t))
 
@@ -129,28 +124,23 @@
 (defvar *depressed-keys* (list))
 
 (defun call-keyboard-handler (time keycode state)
-  (let ((keysym (xkb:xkb-state-key-get-one-sym (xkb-state *compositor*) (+ keycode 8))))
-    (format t "Keycode: ~A, Keysym: ~A, state: ~A~%" keycode keysym state)
-    (if (and (= state 1)
-	     (member keycode *depressed-keys*))
-	(progn
-	  ;;(format t "!!! Not updating key state~%")
-	  )
-	(xkb:xkb-state-update-key (xkb-state *compositor*) (+ keycode 8) state))
-    (if (= state 1)
-	(push keycode *depressed-keys*)
-	(setf *depressed-keys* (delete keycode *depressed-keys*)))
-    (setf (mods-depressed *compositor*) (xkb:xkb-state-serialize-mods (xkb-state *compositor*) 1))
-    ;; (format t "Mods: ~A~%" (mods-depressed *compositor*))
-    (setf (mods-latched *compositor*) (xkb:xkb-state-serialize-mods (xkb-state *compositor*) 2))
-    (setf (mods-locked *compositor*) (xkb:xkb-state-serialize-mods (xkb-state *compositor*) 4))
-    (setf (mods-group *compositor*) (xkb:xkb-state-serialize-layout (xkb-state *compositor*) 64))
-    (when (and (numberp keysym) (numberp state))
-      (keyboard-handler (current-mode (current-view *compositor*))
-			time
-			keycode
-			keysym
-			state))))
+  (with-slots (xkb-input xkb-keybinds) *compositor*
+    (ulubis.xkb:update-key xkb-input keycode state)
+    (ulubis.xkb:update-key xkb-keybinds keycode state)
+    (let ((keysym (ulubis.xkb:last-pressed-key xkb-keybinds)))
+      (setf (mods *compositor*) (ulubis.xkb:serialize-mods (xkb-input *compositor*)))
+      (when (= state 1)
+        (format t "Keycode: ~A; Keysym: ~A; Mods: ~A~%"
+                keycode keysym (mods-depressed (mods *compositor*))))
+      (when (and (numberp keysym) (numberp state))
+        ;; Send to the active client unless handled by Ulubis
+        (unless (keyboard-keybinds-handler (current-mode (current-view *compositor*))
+                                          keysym
+                                          state)
+          (keyboard-handler (current-view *compositor*)
+                            time
+                            keycode
+                            state))))))
 
 (defun resize-compositor ()
   (let ((size (cepl.host:window-size (cepl.context::window cepl.context:*gl-context*))))
@@ -192,11 +182,19 @@
 (defun initialise ()
   (unwind-protect
        (block main-handler
-	 (handler-bind ((error #'(lambda (e)
-				   (format t "~%Oops! Something went wrong with ulubis...we throw ourselves at your mercy! Exiting wih error:~%")
-				   (trivial-backtrace:print-backtrace e)
-				   (return-from main-handler))))
-	 #+sbcl
+         (handler-bind (#+sbcl
+                        (sb-sys:interactive-interrupt
+                         #'(lambda (e)
+                             (format t "Caught SIGINT. Exiting")
+                             (return-from main-handler)))
+                        (error
+                         #'(lambda (e)
+                             (when *enable-debugger*
+                               (invoke-debugger e))
+                             (format t "~%Oops! Something went wrong with ulubis...we throw ourselves at your mercy! Exiting wih error:~%")
+                             (trivial-backtrace:print-backtrace e)
+                             (return-from main-handler))))
+         #+sbcl
 	 (sb-int:set-floating-point-modes :traps nil)
 	 
 	 ;; Make our compositor class
@@ -310,6 +308,6 @@
       (setf (display *compositor*) nil))
     (destroy-backend (backend *compositor*))
     (setf *compositor* nil)))
-  
+
 (defun run-compositor ()
   (initialise))
