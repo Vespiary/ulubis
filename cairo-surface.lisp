@@ -5,7 +5,6 @@
   ((surface :reader surface :initform nil)
    (context :reader context :initform nil)
    (gl-texture :reader gl-texture :initform nil)
-   (allow-gl :reader allow-gl :initarg :allow-gl :initform nil)
    (gl-texture-up-to-date :initform nil)
    (draw-func :accessor draw-func :initarg :draw-func :initform (lambda ()))))
 
@@ -16,14 +15,24 @@
             (error "Need to specify either :filename or :width and :height")
             (setf surface (cl-cairo2:image-surface-create-from-png filename)))
         (if (and width height)
-            (setf surface (cl-cairo2:create-image-surface :argb32 width height))
+            (setf surface (cl-cairo2:create-image-surface :argb32 (truncate width) (truncate height)))
             (error "Need to specify either :filename or :width and :height")))
     (setf context (cl-cairo2:create-context surface)))
   (trivial-garbage:finalize instance #'finalize-instance))
 
+(defun cairo-surface-resize (instance width height)
+  "Creates a new cairo-surface of specified size and immediately calls redraw"
+  (with-slots (surface context) instance
+    (cl-cairo2:destroy context)
+    (cl-cairo2:destroy surface)
+    (setf surface (cl-cairo2:create-image-surface :argb32 width height))
+    (setf context (cl-cairo2:create-context surface))
+    (cairo-surface-redraw instance)))
+
 (defgeneric finalize-instance (instance))
 (defmethod finalize-instance ((instance cairo-surface))
   (with-slots (surface gl-texture) instance
+    (cl-cairo2:destroy surface)
     (when gl-texture
       (cepl:free gl-texture))))
 
@@ -49,8 +58,6 @@ called more often than TEXTURE-OF"))
     (setf gl-texture-up-to-date nil)))
 
 (defmethod texture-of ((instance cairo-surface))
-  (unless (allow-gl instance)
-    (error "This cairo surface isn't set up to upload pixels to GPU.~%Must create it with :allow-gl t"))
   (with-slots (surface gl-texture gl-texture-up-to-date) instance
     (unless gl-texture-up-to-date
       (cl-cairo2:surface-flush surface)

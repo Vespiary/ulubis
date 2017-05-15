@@ -6,11 +6,12 @@
   (format t "Setting title of ~A to ~A~%" toplevel title))
 
 (def-wl-callback move (client toplevel (seat :pointer) (serial :uint32))
-  (setf (moving-surface *compositor*) (make-move-op :surface toplevel
-						    :surface-x (x toplevel)
-						    :surface-y (y toplevel)
-						    :pointer-x (pointer-x *compositor*)
-						    :pointer-y (pointer-y *compositor*))))
+  (when (allow-move? (current-mode *compositor*) toplevel)
+    (setf (moving-surface *compositor*) (make-move-op :surface toplevel
+                                                      :surface-x (x toplevel)
+                                                      :surface-y (y toplevel)
+                                                      :pointer-x (pointer-x *compositor*)
+                                                      :pointer-y (pointer-y *compositor*)))))
 
 (def-wl-callback zxdg-toplevel-destroy (client toplevel)
   (setf (role (wl-surface toplevel)) nil)
@@ -28,6 +29,7 @@
    (:destroy zxdg-toplevel-destroy)
    (:set-title set-title))
   ((zxdg-surface-v6 :accessor zxdg-surface-v6 :initarg :zxdg-surface-v6 :initform nil)
+   (visible :accessor visible :initarg :hidden :initform t :documentation "Intended for use by modes to mark e.g. minimised toplevels")
    (title :accessor title :initform "")))
 
 (defmethod activate ((surface zxdg-toplevel-v6) active-surface mods)

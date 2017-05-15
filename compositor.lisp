@@ -45,6 +45,10 @@
   (setf (xkb-keybinds compositor) (make-instance 'ulubis.xkb:state :layout "us"))
   (setf (xkb-input compositor) (make-instance 'ulubis.xkb:state :layout "us")))
 
+(defmethod current-mode ((compositor compositor))
+  (when (current-view compositor)
+    (current-mode (current-view compositor))))
+
 (defun update-ortho (compositor)
   (setf (ortho compositor) (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
 	   
@@ -117,7 +121,9 @@
   (format t "surface: ~A, view: ~A~%" surface view)
   (when (equalp (active-surface view) surface)
     (setf (active-surface view) nil))
-  (setf (surfaces view) (remove surface (surfaces view))))
+  (setf (surfaces view) (remove surface (surfaces view)))
+  (dolist (mode (modes view))
+    (remove-surface-from-mode) mode surface))
 
 (defun remove-surface (surface compositor)
   (let* ((views (views-with-surface surface)))

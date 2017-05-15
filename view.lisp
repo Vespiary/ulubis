@@ -64,7 +64,9 @@ except a few kbytes of wasted memory."
 (defmethod add-surface ((view view) surface)
   (push surface (surfaces view)))
 
-(defun current-mode (view)
+(defgeneric current-mode (container))
+
+(defmethod current-mode ((view view))
   (with-slots (modes default-mode) view
     (let ((mode (first modes)))
       (if mode

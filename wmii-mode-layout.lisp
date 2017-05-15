@@ -1,5 +1,7 @@
 
-(in-package ulubis.wmii)
+(in-package :ulubis.wmii)
+
+(declaim (optimize (debug 3)))
 
 (defparameter *header-height* 15)
 
@@ -8,6 +10,9 @@
             :initform nil)
    (active-column :accessor active-column
                   :initform nil)
+   (callback :accessor callback
+             :initarg :callback
+             :initform (lambda (surface top bottom left right &key draw-decorations draw-surface tabbed-with)))
    (width :accessor width
           :initarg :width
           :initform 0)
@@ -38,7 +43,7 @@
   "Set `place` to `(not place)` in-place")
 
 (define-modify-macro insert-afterf (at item) insert-after
-  "Insert `item` after `at` i-place")
+  "Insert `item` after `at` in-place")
 
 ;;; layout
 (defmethod active-window ((layout layout))
@@ -58,12 +63,13 @@
 (defun create-column (layout &key end)
   (let ((new-column (make-instance 'column)))
     (with-slots (columns active-column) layout
-      (if columns
-          (if end
-              (setf columns (append columns (list new-column)))
-              (push new-column columns))
-          (setf columns (list new-column))))
-    (recalc-columns-widths layout)))
+      (cond (columns
+             (if end
+                 (setf columns (append columns (list new-column)))
+                 (push new-column columns)))
+            (t
+             (setf columns (list new-column))
+             (setf active-column new-column))))))
 
 (defgeneric remove-window (surface target))
 
@@ -82,8 +88,7 @@
             (if (= i 0)
                 (setf active-column (second columns))
                 (setf active-column (elt columns (- i 1)))))))
-    (setf columns (delete column columns))
-    (recalc-columns-widths layout)))
+    (setf columns (delete column columns))))
 
 (defun move-cursor-left (layout)
   (with-slots (columns active-column) layout
@@ -167,6 +172,11 @@
 (defun toggle-fullscreen (layout)
   (notf (fullscreen (active-window (active-column layout)))))
 
+(defgeneric surfaces (container))
+
+(defmethod surfaces ((layout layout))
+  (mapcan #'surfaces (columns layout)))
+
 ;;; column
 (defmethod move-cursor-up ((column column))
   (with-slots (windows active-window) column
@@ -193,9 +203,11 @@
 
 (defmethod add-window ((item window) (target column))
   (with-slots (active-window windows) target
-    (if (null windows)
-        (push item windows)
-        (insert-afterf windows active-window item))))
+    (cond ((null windows)
+           (push item windows)
+           (setf active-window item))
+          (t
+           (insert-afterf windows active-window item)))))
 
 (defmethod remove-window ((item isurface) (target column))
   (remove-window (find item (active-windows target) :key #'surface)
@@ -212,6 +224,9 @@
       (setf windows (remove item windows))
       (when (eq active-window item)
         (setf active-window new-active-window)))))
+
+(defmethod surfaces ((column column))
+  (mapcar #'surface (windows column)))
 
 ;;; window
 
@@ -235,5 +250,7 @@
           (elt list (+ i 1))))))
 
 (defun insert-after (list at item)
+  (when (or (null list) (null at))
+    (error "LIST and AT must both be non-null"))
   (push item (cdr (member at list)))
   list)

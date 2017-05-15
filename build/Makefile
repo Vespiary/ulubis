@@ -8,5 +8,5 @@ ulubis: build-ulubis-drm-gbm.sh ../*.lisp ../*.asd
 	./build-ulubis-drm-gbm.sh
 
 clean:
-	-rm build/ulubis
-	-rm build/ulubis-sdl
+	-rm ulubis
+	-rm ulubis-sdl

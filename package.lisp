@@ -36,7 +36,24 @@
   (:use :common-lisp
         :waylisp
         :ulubis)
-  (:export #:wmii-mode))
+  (:export #:layout
+           #:surfaces
+           #:width
+           #:height
+           #:add-window
+           #:remove-window
+           #:move-cursor-up
+           #:move-cursor-down
+           #:move-cursor-left
+           #:move-cursor-right
+           #:move-window-up
+           #:move-window-down
+           #:move-window-left
+           #:move-window-right
+           #:resize-column
+           #:set-column-mode
+           #:toggle-fullscreen
+           ))
 
 (defpackage :ulubis.xkb
   (:use :common-lisp)

@@ -109,12 +109,12 @@
   (when (show-cursor *compositor*)
     (setf (render-needed *compositor*) t))
   ;;(mouse-motion-handler (current-mode) time x y))
-  (mouse-motion-handler (current-mode (current-view *compositor*)) time x y))
+  (mouse-motion-handler (current-mode *compositor*) time x y))
 
 ;; Should be able to have "active" window without raising (focus follows mouse)
 (defun call-mouse-button-handler (time button state)
   ;;(mouse-button-handler (current-mode) time button state))
-  (mouse-button-handler (current-mode (current-view *compositor*)) time button state))
+  (mouse-button-handler (current-mode *compositor*) time button state))
 
 (defun window-event-handler ()
   (resize-compositor)
@@ -136,7 +136,7 @@
                 keycode keysym (mods-depressed (mods *compositor*))))
       (when (and (numberp keysym) (numberp state))
         ;; Send to the active client unless handled by Ulubis
-        (unless (keyboard-keybinds-handler (current-mode (current-view *compositor*))
+        (unless (keyboard-keybinds-handler (current-mode *compositor*)
                                           keysym
                                           state)
           (keyboard-handler (current-view *compositor*)
@@ -155,14 +155,14 @@
       (setf (screen-width *compositor*) (first size)
             (screen-height *compositor*) (second size))
       (update-ortho *compositor*)
-      (mapc #'view-ensure-valid-fbo (views *compositor*)))))
+      (mapc #'view-ensure-valid-fbo (views *compositor*))
+      (mapc #'size-changed (mapcan #'modes (views *compositor*))))))
 
 (defun try-load-user-init-file (filename)
   (format t "Trying to load ~A~%" filename)
   (when (probe-file filename)
     (format t "Loading ~A~%" filename)
-    (let ((*package* (find-package :ulubis)))
-      (load filename))))
+    (load filename)))
 
 (defun perform-user-init ()
   ;; Load user configuration file
@@ -183,134 +183,134 @@
     (setf (current-view *compositor*) (first (views *compositor*)))))
 
 (defun initialise ()
+  #+sbcl
+  (sb-int:set-floating-point-modes :traps nil)
+  
+  ;; Make our compositor class
+  (setf *compositor* (make-instance 'compositor))
+  
+  ;; Initialise backend
+  (setf (backend *compositor*) (make-instance 'backend))
+  (initialise-backend (backend *compositor*)
+                      640
+                      480
+                      (devices *compositor*))
+  (resize-compositor)
+
+  (perform-user-init)
+
+  (register-mouse-motion-handler (backend *compositor*) 'call-mouse-motion-handler)
+  (register-mouse-button-handler (backend *compositor*) 'call-mouse-button-handler)
+  (register-window-event-handler (backend *compositor*) 'window-event-handler)
+  (register-keyboard-handler (backend *compositor*) 'call-keyboard-handler)
+  
+  ;; Create our wayland display
+  (setf (display *compositor*) (wl-display-create))
+  (format t "Opened socket: ~A~%" (wl-display-add-socket-auto (display *compositor*)))
+
+  ;; Initialise shared memory
+
+  
+  (initialize-wayland-server-interfaces) 
+  (initialize-xdg-shell-server-interfaces)
+  (initialize-zxdg-shell-v6-server-interfaces) 
+  ;;(set-implementations)
+  (set-implementation-wl-surface)
+  (set-implementation-wl-seat)
+  (set-implementation-wl-pointer)
+  (set-implementation-wl-seat)
+  ;;(set-implementation-wl-callback)
+  (set-implementation-wl-region)
+  (set-implementation-wl-compositor)
+  (set-implementation-wl-subcompositor)
+  (set-implementation-wl-subsurface)
+  (set-implementation-wl-output)	 
+  (set-implementation-wl-shell)
+  (set-implementation-wl-shell-surface)
+  (set-implementation-wl-data-device-manager)
+  (set-implementation-wl-data-device)
+  (set-implementation-wl-data-source)
+  (set-implementation-zxdg-shell-v6)
+  (set-implementation-zxdg-surface-v6)
+  (set-implementation-zxdg-toplevel-v6)
+  (set-implementation-xdg-shell)
+  (set-implementation-xdg-surface)
+
+  (wl-display-init-shm (display *compositor*))
+
+  (wl-global-create (display *compositor*) 
+                    wl-output-interface
+                    2
+                    (null-pointer)
+                    (callback output-bind))
+
+  (wl-global-create (display *compositor*)
+                    wl-compositor-interface
+                    3
+                    (null-pointer)
+                    (callback compositor-bind))
+  
+  (wl-global-create (display *compositor*)
+                    wl-shell-interface
+                    1
+                    (null-pointer)
+                    (callback shell-bind))
+
+  (wl-global-create (display *compositor*)
+                    wl-seat-interface
+                    3
+                    (null-pointer)
+                    (callback seat-bind))
+
+  (wl-global-create (display *compositor*)
+                    wl-data-device-manager-interface
+                    3
+                    (null-pointer)
+                    (callback device-manager-bind))
+
+  (wl-global-create (display *compositor*) 
+                    wl-subcompositor-interface
+                    1
+                    (null-pointer)
+                    (callback subcompositor-bind))
+  
+  (wl-global-create (display *compositor*)
+                    zxdg-shell-v6-interface
+                    1
+                    (null-pointer)
+                    (callback zxdg-shell-v6-bind))
+  
+  (wl-global-create (display *compositor*)
+                    xdg-shell-interface
+                    1
+                    (null-pointer)
+                    (callback xdg-shell-bind)))
+
+(defun run-main-loop ()
+  (setf (running *compositor*) t)
+  (if (string-equal (symbol-name backend-name) "backend-drm-gbm")
+      (main-loop-drm (wl-display-get-event-loop (display *compositor*)))
+      (main-loop-sdl (wl-display-get-event-loop (display *compositor*)))))
+
+(defun run-compositor ()
   (unwind-protect
-       (block main-handler
+       (with-simple-restart (terminate "Terminate Ulubis")
          (handler-bind (#+sbcl
                         (sb-sys:interactive-interrupt
-                         #'(lambda (e)
-                             (format t "Caught SIGINT. Exiting")
-                             (return-from main-handler)))
+                         (lambda (e)
+                           (format t "Caught SIGINT. Exiting")
+                           (return-from run-compositor)))
                         (error
-                         #'(lambda (e)
-                             (when *enable-debugger*
-                               (invoke-debugger e))
-                             (format t "~%Oops! Something went wrong with ulubis...we throw ourselves at your mercy! Exiting wih error:~%")
-                             (trivial-backtrace:print-backtrace e)
-                             (return-from main-handler))))
-         #+sbcl
-	 (sb-int:set-floating-point-modes :traps nil)
-	 
-	 ;; Make our compositor class
-	 (setf *compositor* (make-instance 'compositor))
-	 
-	 ;; Initialise backend
-	 (setf (backend *compositor*) (make-instance 'backend))
-	 (initialise-backend (backend *compositor*)
-                             640
-                             480
-                             (devices *compositor*))
-         (resize-compositor)
-
-         (perform-user-init)
-
-	 (register-mouse-motion-handler (backend *compositor*) 'call-mouse-motion-handler)
-	 (register-mouse-button-handler (backend *compositor*) 'call-mouse-button-handler)
-	 (register-window-event-handler (backend *compositor*) 'window-event-handler)
-	 (register-keyboard-handler (backend *compositor*) 'call-keyboard-handler)
-	 
-	 ;; Create our wayland display
-	 (setf (display *compositor*) (wl-display-create))
-	 (format t "Opened socket: ~A~%" (wl-display-add-socket-auto (display *compositor*)))
-
-	 ;; Initialise shared memory
-
-	 
-	 (initialize-wayland-server-interfaces) 
-	 (initialize-xdg-shell-server-interfaces)
-	 (initialize-zxdg-shell-v6-server-interfaces) 
-	 ;;(set-implementations)
-	 (set-implementation-wl-surface)
-	 (set-implementation-wl-seat)
-	 (set-implementation-wl-pointer)
-	 (set-implementation-wl-seat)
-	 ;;(set-implementation-wl-callback)
-	 (set-implementation-wl-region)
-	 (set-implementation-wl-compositor)
-	 (set-implementation-wl-subcompositor)
-	 (set-implementation-wl-subsurface)
-	 (set-implementation-wl-output)	 
-	 (set-implementation-wl-shell)
-	 (set-implementation-wl-shell-surface)
-	 (set-implementation-wl-data-device-manager)
-	 (set-implementation-wl-data-device)
-	 (set-implementation-wl-data-source)
-	 (set-implementation-zxdg-shell-v6)
-	 (set-implementation-zxdg-surface-v6)
-	 (set-implementation-zxdg-toplevel-v6)
-	 (set-implementation-xdg-shell)
-	 (set-implementation-xdg-surface)
-
-	 (wl-display-init-shm (display *compositor*))
-
-	 (wl-global-create (display *compositor*) 
-			   wl-output-interface
-			   2
-			   (null-pointer)
-			   (callback output-bind))
-
-	 (wl-global-create (display *compositor*)
-			   wl-compositor-interface
-			   3
-			   (null-pointer)
-			   (callback compositor-bind))
-	 
-	 (wl-global-create (display *compositor*)
-			   wl-shell-interface
-			   1
-			   (null-pointer)
-			   (callback shell-bind))
-
-	 (wl-global-create (display *compositor*)
-			   wl-seat-interface
-			   3
-			   (null-pointer)
-			   (callback seat-bind))
-
-	 (wl-global-create (display *compositor*)
-			   wl-data-device-manager-interface
-			   3
-			   (null-pointer)
-			   (callback device-manager-bind))
-
-	 (wl-global-create (display *compositor*) 
-			   wl-subcompositor-interface
-			   1
-			   (null-pointer)
-			   (callback subcompositor-bind))
-	 
-	 (wl-global-create (display *compositor*)
-			   zxdg-shell-v6-interface
-			   1
-			   (null-pointer)
-			   (callback zxdg-shell-v6-bind))
-	 
-	 (wl-global-create (display *compositor*)
-			   xdg-shell-interface
-			   1
-			   (null-pointer)
-			   (callback xdg-shell-bind))
-
-	 ;; Run main loop
-	 ;; (format t "Running main loop~%")
-	 (setf (running *compositor*) t)
-	 (if (string-equal (symbol-name backend-name) "backend-drm-gbm")
-	     (main-loop-drm (wl-display-get-event-loop (display *compositor*)))
-	     (main-loop-sdl (wl-display-get-event-loop (display *compositor*))))))
+                         (lambda (e)
+                           (when *enable-debugger*
+                             (invoke-debugger e))
+                           (format t "~%Oops! Something went wrong with ulubis...we throw ourselves at your mercy! Exiting wih error:~%")
+                           (trivial-backtrace:print-backtrace e)
+                           (return-from run-compositor))))
+           (initialise)
+           (run-main-loop)))
     (when (display *compositor*)
       (wl-display-destroy (display *compositor*))
       (setf (display *compositor*) nil))
     (destroy-backend (backend *compositor*))
     (setf *compositor* nil)))
-
-(defun run-compositor ()
-  (initialise))

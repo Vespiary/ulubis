@@ -4,10 +4,6 @@
 (defmode desktop-mode ()
   ((clear-color :accessor clear-color :initarg :clear-color :initform (list 0.3 0.3 0.3 0.0))))
 
-(defmethod init-mode ((mode desktop-mode))
-  (cepl:map-g #'mapping-pipeline nil)
-  (setf (render-needed *compositor*) t))
-
 (defun move-surface (x y move-op)
   "Move surface to location X and Y given the MOVE-OP"
   (let ((surface (move-op-surface move-op)))
@@ -112,8 +108,8 @@
     (start-animation animation)))
 
 (defmethod render ((mode desktop-mode) &optional view-fbo)
-  (apply #'gl:clear-color (clear-color mode))
   (let ((*ortho* (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
+    (apply #'gl:clear-color (clear-color mode))
     (when view-fbo
       (cepl:clear view-fbo))
     (cepl:with-blending (blending-parameters mode)

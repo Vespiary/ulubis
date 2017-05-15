@@ -298,7 +298,6 @@
 (defun init-vector-cursor ()
   (unless *default-cursor*
     (setf *default-cursor* (make-instance 'cairo-surface
-                                          :allow-gl t
                                           :width 64
                                           :height 64))
     (setf (draw-func *default-cursor*)
@@ -323,7 +322,6 @@
 (defun init-image-cursor ()
   (unless *default-cursor*
     (setf *default-cursor* (make-instance 'cairo-surface
-                                          :allow-gl t
                                           :filename "assets/cursor.png"))))
 
 (defun make-g-pt-quad (top bottom left right)
@@ -365,6 +363,11 @@
 
 (cepl:def-g-> mapping-pipeline ()
   (mode-vertex-shader cepl:g-pt) (default-fragment-shader :vec2))
+
+(defmethod render ((toplevel zxdg-toplevel-v6) &optional view-fbo)
+  ;; Decide whether to render server decorations here too
+  (when (visible toplevel)
+    (call-next-method)))
 
 (defmethod render ((surface isurface) &optional view-fbo)
   (when (texture (wl-surface surface))

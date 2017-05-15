@@ -27,11 +27,27 @@
 (defgeneric keyboard-handler (mode time keycode state))
 (defgeneric render (mode &optional view-fbo))
 (defgeneric first-commit (mode surface))
+(defgeneric size-changed (mode width height))
+(defgeneric remove-surface-from-mode (mode surface))
+(defgeneric allow-move? (mode surface))
 
 (defmethod init-mode :before ((mode mode))
   (setf (blending-parameters mode) (cepl:make-blending-params)))
 
+(defmethod init-mode ((mode mode))
+  (cepl:map-g #'mapping-pipeline nil)
+  (setf (render-needed *compositor*) t))
+
 (defmethod first-commit ((mode mode) surface)
+  )
+
+(defmethod size-changed ((mode mode) width height)
+  )
+
+(defmethod allow-move ((mode mode) surface)
+  t)
+
+(defmethod remove-surface-from-mode ((mode mode) surface)
   )
 
 (defun push-mode (view mode)
@@ -210,4 +226,7 @@
 				0
 				time
 				button
-				state)))))
+				state))))
+  ;; stop drag (It can be started by the client)
+  (when (and (moving-surface *compositor*) (= button #x110) (= state 0))
+    (setf (moving-surface *compositor*) nil)))
