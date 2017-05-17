@@ -15,7 +15,7 @@
 (def-wl-delete client-delete (xdg-shell)
   (when xdg-shell
     (remove-client (->client (client xdg-shell)))
-    (setf (render-needed *compositor*) t)))
+    (request-render)))
 
 (def-wl-bind xdg-shell-bind (client (data :pointer) (version :uint32) (id :uint32))
   (make-xdg-shell client 1 id :delete-fn (callback client-delete)))

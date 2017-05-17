@@ -26,7 +26,9 @@
 (defgeneric mouse-button-handler (mode time button state))
 (defgeneric keyboard-handler (mode time keycode state))
 (defgeneric render (mode &optional view-fbo))
+(defgeneric first-configure (mode surface))
 (defgeneric first-commit (mode surface))
+(defgeneric commit (mode surface))
 (defgeneric size-changed (mode width height))
 (defgeneric remove-surface-from-mode (mode surface))
 (defgeneric allow-move? (mode surface))
@@ -36,9 +38,17 @@
 
 (defmethod init-mode ((mode mode))
   (cepl:map-g #'mapping-pipeline nil)
-  (setf (render-needed *compositor*) t))
+  (request-render))
+
+(defmethod first-configure ((mode mode) surface)
+  (with-wl-array array
+    (zxdg-toplevel-v6-send-configure (->resource toplevel) 0 0 array)
+    (zxdg-surface-v6-send-configure (->resource (zxdg-surface-v6 toplevel)) 0)))
 
 (defmethod first-commit ((mode mode) surface)
+  )
+
+(defmethod commit ((mode mode) surface)
   )
 
 (defmethod size-changed ((mode mode) width height)
@@ -54,7 +64,7 @@
   (setf (view mode) view)
   (init-mode mode)
   (push mode (modes view))
-  (setf (render-needed *compositor*) t))
+  (request-render))
   
 (defun pop-mode (mode)
   (with-slots (view) mode
@@ -195,7 +205,7 @@
   (with-slots (pointer-x pointer-y) *compositor*
     (update-pointer delta-x delta-y)
     (when (cursor-surface *compositor*)
-      (setf (render-needed *compositor*) t))
+      (request-render))
     (let ((old-surface (pointer-surface *compositor*))
 	  (current-surface (surface-under-pointer pointer-x pointer-y (view mode))))
       (cond

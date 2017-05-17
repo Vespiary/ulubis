@@ -10,7 +10,7 @@
 
 (def-wl-delete wl-shell-surface-delete (shell-surface)
   (remove-surface shell-surface *compositor*)
-  (setf (render-needed *compositor*) t))
+  (request-render))
 
 (defimplementation wl-shell ()
   ((:get-shell-surface get-shell-surface))

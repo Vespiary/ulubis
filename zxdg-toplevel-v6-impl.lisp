@@ -1,6 +1,8 @@
 
 (in-package :ulubis)
 
+(declaim (optimize (debug 3)))
+
 (def-wl-callback set-title (client toplevel (title :string))
   (setf (title toplevel) title)
   (format t "Setting title of ~A to ~A~%" toplevel title))
@@ -16,40 +18,53 @@
 (def-wl-callback zxdg-toplevel-destroy (client toplevel)
   (setf (role (wl-surface toplevel)) nil)
   (remove-surface toplevel *compositor*)
-  (setf (render-needed *compositor*) t))
+  (request-render))
 
 (def-wl-delete zxdg-toplevel-delete (toplevel)
   (when toplevel
     (setf (role (wl-surface toplevel)) nil)
     (remove-surface toplevel *compositor*)
-    (setf (render-needed *compositor*) t)))
+    (request-render)))
 
 (defimplementation zxdg-toplevel-v6 (isurface ianimatable)
   ((:move move)
    (:destroy zxdg-toplevel-destroy)
    (:set-title set-title))
   ((zxdg-surface-v6 :accessor zxdg-surface-v6 :initarg :zxdg-surface-v6 :initform nil)
-   (visible :accessor visible :initarg :hidden :initform t :documentation "Intended for use by modes to mark e.g. minimised toplevels")
+   (requested-size :accessor requested-size :initarg :requested-size :initform (list 0 0))
    (title :accessor title :initform "")))
 
 (defmethod activate ((surface zxdg-toplevel-v6) active-surface mods)
   (call-next-method)
   (with-wl-array array
     (setf (mem-aref (wl-array-add array 4) :int32) 4)
-    (zxdg-toplevel-v6-send-configure (->resource surface) 0 0 array)
+    (configure-to-requested surface array)
     (zxdg-surface-v6-send-configure (->resource (zxdg-surface-v6 surface)) 0))
   surface)
 
 (defmethod deactivate ((surface zxdg-toplevel-v6))
   (call-next-method)
   (with-wl-array array
-    (zxdg-toplevel-v6-send-configure (->resource surface) 0 0 array)
+    (configure-to-requested surface array)
     (zxdg-surface-v6-send-configure (->resource (zxdg-surface-v6 surface)) 0)))
 
-(defmethod resize ((surface zxdg-toplevel-v6) width height time &key (activate? t))
+(defmethod resize ((surface zxdg-toplevel-v6) width height time
+                   &key (activate? t) maximize fullscreen)
+  (setf (requested-size surface) (list (round width) (round height)))
   (with-wl-array array
+    (when maximize
+      (setf (mem-aref (wl-array-add array 4) :int32) 1))
+    (when fullscreen
+      (setf (mem-aref (wl-array-add array 4) :int32) 2))
     (setf (mem-aref (wl-array-add array 4) :int32) 3)
     (when activate?
       (setf (mem-aref (wl-array-add array 4) :int32) 4))
     (zxdg-toplevel-v6-send-configure (->resource surface) (round width) (round height) array)
     (zxdg-surface-v6-send-configure (->resource (zxdg-surface-v6 surface)) 0)))
+
+(defmethod configure-to-requested ((surface zxdg-toplevel-v6) array)
+  (destructuring-bind (width height) (requested-size surface)
+    (zxdg-toplevel-v6-send-configure (->resource surface) width height array)))
+
+(defmethod window-geometry ((toplevel zxdg-toplevel-v6))
+  (window-geometry (zxdg-surface-v6 toplevel)))

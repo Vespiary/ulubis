@@ -23,7 +23,7 @@
   (setf (surfaces mode) (remove-if (lambda (surface)
 				     (not (texture (wl-surface surface))))
 				   (surfaces (view mode))))
-  (setf (projection mode) (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1000 -1000))
+  (setf (projection mode) (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1000 -1000))
   (setf (iso-animation mode) (enter-animation mode))
   (start-animation (iso-animation mode)))
 
@@ -37,12 +37,12 @@
   (with-slots (surfaces selection) mode
     (when (> (length surfaces) 0)
       (setf selection (mod (incf selection) (length surfaces)))
-      (setf (render-needed *compositor*) t))))
+      (request-render))))
 
 (defkeybinding (:released nil Gui) (mode) (alt-tab-mode)
   (format t "Released alt-tab ~%")
   (with-slots (surfaces selection iso-animation) mode
-    (setf (render-needed *compositor*) t)
+    (request-render)
     (when iso-animation
       (stop-animation iso-animation))
     (let ((selected-surface (nth selection surfaces)))

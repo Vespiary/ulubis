@@ -40,8 +40,10 @@
            #:surfaces
            #:width
            #:height
-           #:add-window
-           #:remove-window
+           #:add-surface
+           #:remove-surface
+           #:reposition-all-windows
+           #:set-active-surface
            #:move-cursor-up
            #:move-cursor-down
            #:move-cursor-left

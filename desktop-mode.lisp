@@ -9,7 +9,7 @@
   (let ((surface (move-op-surface move-op)))
     (setf (x surface) (round (+ (move-op-surface-x move-op) (- x (move-op-pointer-x move-op)))))
     (setf (y surface) (round (+ (move-op-surface-y move-op) (- y (move-op-pointer-y move-op)))))
-    (setf (render-needed *compositor*) t)))
+    (request-render)))
 
 (defun resize-surface (x y view resize-op)
   "Resize surface given new pointer location (X,Y) and saved information in RESIZE-OP"
@@ -44,7 +44,7 @@
       (activate-surface surface mode)
       (when surface
 	(raise-surface surface (view mode))
-	(setf (render-needed *compositor*) t))))
+	(request-render))))
   
   ;; Drag window
   (when (and (= button #x110) (= state 1) (= Gui (mods-depressed (mods *compositor*))))
@@ -108,7 +108,7 @@
     (start-animation animation)))
 
 (defmethod render ((mode desktop-mode) &optional view-fbo)
-  (let ((*ortho* (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
+  (let ((*ortho* (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
     (apply #'gl:clear-color (clear-color mode))
     (when view-fbo
       (cepl:clear view-fbo))

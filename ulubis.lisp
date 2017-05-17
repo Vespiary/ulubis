@@ -12,9 +12,9 @@
       (cepl:clear)
       (cepl:map-g #'passthrough-shader vs :texture texture)
       (gl:enable :blend)
-      (draw-cursor (cursor-surface *compositor*) nil (pointer-x *compositor*) (pointer-y *compositor*) (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1))
+      (draw-cursor (cursor-surface *compositor*) nil (pointer-x *compositor*) (pointer-y *compositor*) (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1))
       (swap-buffers (backend *compositor*))
-      (setf (render-needed *compositor*) nil)
+      (setf (slot-value *compositor* 'render-needed) nil)
       (loop :for callback :in (callbacks *compositor*) :do
 	 (when (find (client callback) waylisp::*clients*)
 	   ;; We can end up getting a frame request after the client has been deleted
@@ -34,11 +34,11 @@
     (event-loop-add-drm-fd (backend *compositor*) event-loop)
     (loop :while (running *compositor*)
        :do (with-simple-restart (skip-event "Skip handling this event")
-	     (when (and (render-needed *compositor*) (not (get-scheduled (backend *compositor*))))
+	     (when (and (slot-value *compositor* 'render-needed) (not (get-scheduled (backend *compositor*))))
 	       (draw-screen))
 	     (wl-display-flush-clients (display *compositor*))
 	     (wl-event-loop-dispatch event-loop -1)
-	     (animation::update-animations (lambda () (setf (render-needed *compositor*) t)))))))
+	     (animation::update-animations #'request-render)))))
 
 (defun main-loop-sdl (event-loop)
   (let ((wayland-fd (wl-event-loop-get-fd event-loop)))
@@ -47,7 +47,7 @@
       (initialize-animation event-loop)
       (loop :while (running *compositor*)
 	 :do (with-simple-restart (skip-event "Skip handling this event")
-	       (when (render-needed *compositor*)
+	       (when (slot-value *compositor* 'render-needed)
 		 (draw-screen))
 	       (wl-event-loop-dispatch event-loop 0)
 	       (wl-display-flush-clients (display *compositor*))
@@ -55,8 +55,7 @@
 		 (let ((event (syscall:poll pollfds 1 5)))
 		   (wl-event-loop-dispatch event-loop 0)
 		   (wl-display-flush-clients (display *compositor*))
-		   (animation::update-animations (lambda ()
-						   (setf (render-needed *compositor*) t)))
+		   (animation::update-animations #'request-render)
 		   (process-events (backend *compositor*)))))))))
 
 (defun resize-surface-relative (surface view delta-x delta-y)
@@ -107,7 +106,7 @@
 
 (defun call-mouse-motion-handler (time x y)
   (when (show-cursor *compositor*)
-    (setf (render-needed *compositor*) t))
+    (request-render))
   ;;(mouse-motion-handler (current-mode) time x y))
   (mouse-motion-handler (current-mode *compositor*) time x y))
 
@@ -118,7 +117,7 @@
 
 (defun window-event-handler ()
   (resize-compositor)
-  (setf (render-needed *compositor*) t))
+  (request-render))
 
 ;; Kludge for SDL backend on multi-desktop WMs to avoid sticky mods.
 ;; Seems like sway uses wl_keyboard_listener. We probably should use
@@ -156,7 +155,9 @@
             (screen-height *compositor*) (second size))
       (update-ortho *compositor*)
       (mapc #'view-ensure-valid-fbo (views *compositor*))
-      (mapc #'size-changed (mapcan #'modes (views *compositor*))))))
+      (dolist (mode (append (mapcan #'modes (views *compositor*))
+                            (mapcar #'default-mode (views *compositor*))))
+        (size-changed mode (first size) (second size))))))
 
 (defun try-load-user-init-file (filename)
   (format t "Trying to load ~A~%" filename)

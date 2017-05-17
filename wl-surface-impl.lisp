@@ -11,7 +11,9 @@
   (when (and (buffer surface) (first-commit? surface))
     (first-commit (current-mode *compositor*) (role surface))
     (setf (first-commit? surface) nil))
-  (setf (render-needed *compositor*) t))
+  (dolist (view (views-with-surface (role surface)))
+    (commit (current-mode view) (role surface)))
+  (request-render))
 
 (def-wl-callback attach (client surface (buffer :pointer) (x :int32) (y :int32))
   (setf (buffer surface) buffer))

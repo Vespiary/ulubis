@@ -234,7 +234,7 @@
 	 (wl-resource-destroy (->resource (frame-callback ,surface)))
 	 (setf (frame-callback ,surface) nil)))))
 
-(defun ortho (left right bottom top near far)
+(defun make-ortho (left right bottom top near far)
   (let ((m (m4:identity)))
     (setf (m4:melm m 0 0) (/ 2.0 (- right left)))
     (setf (m4:melm m 1 1) (/ 2.0 (- top bottom)))
@@ -349,13 +349,13 @@
                        :texture (texture-of *default-cursor*))
     (cepl:free vertex-stream)
     (cepl:free array)
-    (setf (render-needed *compositor*) t)))
+    (request-render)))
 
 #|
 (defgeneric render-surface (surface mode))
 |#
 
-(defvar *ortho* (ortho 0 1 1 0 1 -1))
+(defvar *ortho* (make-ortho 0 1 1 0 1 -1))
 
 (cepl:defun-g mode-vertex-shader ((vert cepl:g-pt) &uniform (origin :mat4) (origin-inverse :mat4) (surface-scale :mat4) (surface-translate :mat4))
   (values (* *ortho* surface-translate origin-inverse surface-scale origin (cepl:v! (cepl:pos vert) 1))
@@ -363,11 +363,6 @@
 
 (cepl:def-g-> mapping-pipeline ()
   (mode-vertex-shader cepl:g-pt) (default-fragment-shader :vec2))
-
-(defmethod render ((toplevel zxdg-toplevel-v6) &optional view-fbo)
-  ;; Decide whether to render server decorations here too
-  (when (visible toplevel)
-    (call-next-method)))
 
 (defmethod render ((surface isurface) &optional view-fbo)
   (when (texture (wl-surface surface))

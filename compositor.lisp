@@ -1,7 +1,7 @@
 
 (in-package :ulubis)
 
-(defparameter *compositor* nil)
+(defvar *compositor* nil)
 
 (defun run-program (string)
   #+sbcl
@@ -19,7 +19,7 @@
    (event-loop :accessor event-loop :initarg :event-loop :initform nil)
    (screen-width :accessor screen-width :initarg :screen-width :initform 640)
    (screen-height :accessor screen-height :initarg :screen-height :initform 480)
-   (ortho :accessor ortho :initform (ortho 0 1 1 0 1 -1))
+   (ortho :accessor ortho :initform (make-ortho 0 1 1 0 1 -1))
    (views :accessor views :initarg :views :initform nil) ;; e.g. virtual desktops
    (current-view :accessor current-view :initarg current-view :initform nil)
    (moving-surface :accessor moving-surface :initarg :moving-surface :initform nil)
@@ -30,7 +30,7 @@
    (pointer-x :accessor pointer-x :initarg :pointer-x :initform 0)
    (pointer-y :accessor pointer-y :initarg :pointer-y :initform 0)
    (data-devices :accessor data-devices :initarg :data-devices :initform nil)
-   (render-needed :accessor render-needed :initarg :render-needed :initform nil)
+   (render-needed #|:accessor render-needed|# :initarg :render-needed :initform nil)
    (xkb-input :accessor xkb-input :initarg :xkb-state :initform nil)
    (xkb-keybinds :accessor xkb-keybinds :initarg :xkb-state :initform nil)
    (mods :accessor mods :initarg :mods :initform (make-mods))))
@@ -45,12 +45,15 @@
   (setf (xkb-keybinds compositor) (make-instance 'ulubis.xkb:state :layout "us"))
   (setf (xkb-input compositor) (make-instance 'ulubis.xkb:state :layout "us")))
 
+(defun request-render ()
+  (setf (slot-value *compositor* 'render-needed) t))
+
 (defmethod current-mode ((compositor compositor))
   (when (current-view compositor)
     (current-mode (current-view compositor))))
 
 (defun update-ortho (compositor)
-  (setf (ortho compositor) (ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
+  (setf (ortho compositor) (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
 	   
 (defun set-keymap (compositor r m l v o)
   (with-slots (xkb-input) compositor
@@ -118,12 +121,12 @@
      :when (view-has-surface? surface view) :collect it))
 
 (defun remove-surface-from-view (surface view)
-  (format t "surface: ~A, view: ~A~%" surface view)
   (when (equalp (active-surface view) surface)
     (setf (active-surface view) nil))
   (setf (surfaces view) (remove surface (surfaces view)))
   (dolist (mode (modes view))
-    (remove-surface-from-mode) mode surface))
+    (remove-surface-from-mode mode surface))
+  (remove-surface-from-mode (default-mode view) surface))
 
 (defun remove-surface (surface compositor)
   (let* ((views (views-with-surface surface)))
@@ -219,4 +222,4 @@
     (when (>= n count)
       (setf n (- count 1)))
     (setf (current-view *compositor*) (nth n views)))
-  (setf (render-needed *compositor*) t))
+  (request-render))
