@@ -270,6 +270,15 @@
 (cepl:def-g-> ulubis-cursor-pipeline ()
   (ulubis-cursor-vertex-shader cepl:g-pt) (default-fragment-shader :vec2))
     
+(cepl:defun-g panel-fragment-shader ((tex-coord :vec2) &uniform (texture :sampler-2d))
+  (cepl:v! (cepl:s~ (cepl:texture texture tex-coord) :z)
+           (cepl:s~ (cepl:texture texture tex-coord) :y)
+           (cepl:s~ (cepl:texture texture tex-coord) :x)
+           (cepl:s~ (cepl:texture texture tex-coord) :w)))
+
+(cepl:def-g-> panel-pipeline ()
+  (passthrough-vert cepl:g-pt) (panel-fragment-shader :vec2))
+
 (defmethod draw-cursor ((surface isurface) fbo x y ortho)
   ;;(format t "DRAW-CURSOR~%")
   ;;(describe surface)
@@ -297,31 +306,31 @@
 
 (defun init-vector-cursor ()
   (unless *default-cursor*
-    (setf *default-cursor* (make-instance 'cairo-surface
+    (setf *default-cursor* (make-instance 'ulubis.cairo:surface
                                           :width 64
-                                          :height 64))
-    (setf (draw-func *default-cursor*)
-          (lambda ()
-            (cl-cairo2:translate 32 32)
-            (cl-cairo2:set-source-rgba 1 1 1 0)
-            (cl-cairo2:paint)
-            (cl-cairo2:move-to 0 0)
-            (cl-cairo2:line-to 0 15)
-            (cl-cairo2:line-to 4 13)
-            (cl-cairo2:line-to 6 20)
-            (cl-cairo2:line-to 8 19)
-            (cl-cairo2:line-to 6 12)
-            (cl-cairo2:line-to 9 12)
-            (cl-cairo2:close-path)
-            (cl-cairo2:set-source-rgba 0 0 0 1)
-            (cl-cairo2:stroke-preserve)
-            (cl-cairo2:set-source-rgba 1 1 1 1)
-            (cl-cairo2:fill-path)
-            ))))
+                                          :height 64
+                                          :draw-func
+                                          (lambda ()
+                                            (cl-cairo2:translate 32 32)
+                                            (cl-cairo2:set-source-rgba 1 1 1 0)
+                                            (cl-cairo2:paint)
+                                            (cl-cairo2:move-to 0 0)
+                                            (cl-cairo2:line-to 0 15)
+                                            (cl-cairo2:line-to 4 13)
+                                            (cl-cairo2:line-to 6 20)
+                                            (cl-cairo2:line-to 8 19)
+                                            (cl-cairo2:line-to 6 12)
+                                            (cl-cairo2:line-to 9 12)
+                                            (cl-cairo2:close-path)
+                                            (cl-cairo2:set-source-rgba 0 0 0 1)
+                                            (cl-cairo2:stroke-preserve)
+                                            (cl-cairo2:set-source-rgba 1 1 1 1)
+                                            (cl-cairo2:fill-path)
+                                            )))))
 
 (defun init-image-cursor ()
   (unless *default-cursor*
-    (setf *default-cursor* (make-instance 'cairo-surface
+    (setf *default-cursor* (make-instance 'ulubis.cairo:surface
                                           :filename "assets/cursor.png"))))
 
 (defun make-g-pt-quad (top bottom left right)
@@ -335,9 +344,9 @@
 (defmethod draw-cursor ((cursor (eql nil)) fbo x y ortho)
   (unless *default-cursor*
     (init-image-cursor)
-    (cairo-surface-redraw *default-cursor*))
-  (let* ((halfw (/ (width *default-cursor*) 2))
-         (halfh (/ (height *default-cursor*) 2))
+    (ulubis.cairo:redraw *default-cursor*))
+  (let* ((halfw (/ (ulubis.cairo:width *default-cursor*) 2))
+         (halfh (/ (ulubis.cairo:height *default-cursor*) 2))
          (array (cepl:make-gpu-array (make-g-pt-quad (- y halfh)
                                                      (+ y halfh)
                                                      (- x halfw)

@@ -12,8 +12,8 @@
 (defmethod initialize-instance :after ((mode wmii-mode) &key)
   (setf (layout mode)
         (make-instance 'ulubis.wmii:layout
-                       :width (screen-width *compositor*)
-                       :height (screen-width *compositor*)
+                       :width 640
+                       :height 480
                        :reposition-callback (lambda (surface top bottom left right &rest keys)
                                               (apply #'wmii-reposition-window
                                                      mode surface top bottom left right keys))
@@ -55,11 +55,11 @@
   (when render-surface
     (resize surface (- right left) (- bottom top) (get-milliseconds)
             :activate? (eq (surface surface) (active-surface (view mode)))
-            :maximize t)))
+            :fullscreen t)))
 
 (defmethod size-changed ((mode wmii-mode) width height)
-  (setf (width (layout mode)) width)
-  (setf (height (layout mode)) height)
+  (setf (width (layout mode)) (desktop-width))
+  (setf (height (layout mode)) (desktop-height))
   (ulubis.wmii:reposition-all-windows (layout mode)))
 
 (defmethod (setf title) :after (new-title (toplevel zxdg-toplevel-v6))
@@ -76,6 +76,9 @@
                                   :surface surface)))
     (push decorated (surfaces mode))
     (ulubis.wmii:add-surface decorated (layout mode))))
+
+(defmethod first-commit ((mode wmii-mode) surface)
+  (activate-surface surface mode))
 
 (defmethod commit ((mode wmii-mode) surface)
   (update-decorated-position (find-decorated mode surface)))
@@ -100,7 +103,7 @@
       (return-from decorated-surface-under-pointer surface))))
 
 (defmethod render ((mode wmii-mode) &optional view-fbo)
-  (let ((*ortho* (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
+  (let ((*ortho* (make-ortho 0 (desktop-width) (desktop-height) 0 1 -1)))
     (apply #'gl:clear-color (clear-color mode))
     (when view-fbo
       (cepl:clear view-fbo))
@@ -115,36 +118,92 @@
                   (render surface view-fbo))
                 (reverse floating-surfaces))))))
 
-;;; Decoration
+;;; Decorations
 
-(defclass wmii-decoration (decoration cairo-surface)
+(defclass wmii-decoration (decoration ulubis.cairo:surface)
   ((tabs :accessor tabs :initarg :tabs :initform nil :documentation "A list of toplevels tabbed with the main one")))
 
 (defmethod initialize-instance :after ((instance wmii-decoration) &key mode)
-  (setf (draw-func instance)
+  (setf (ulubis.cairo:draw-func instance)
         (lambda ()
           (wmii-decoration-draw instance mode))))
 
 (defun wmii-decoration-draw (decoration mode)
-  (with-slots (surface) decoration
-    (let ((active-surface? (eq (active-surface (view mode)) surface))
-          (title (title surface)))
-      (if active-surface?
-          (cl-cairo2:set-source-rgba 0.3 0.2 0.0 1)
-          (cl-cairo2:set-source-rgba 0.6 0.4 0.0 1))
-      (cl-cairo2:paint)
-      (cl-cairo2:set-source-rgba 0.0 0.0 0.0 1)
-      (cl-cairo2:move-to 10 10)
-      (cl-cairo2:show-text title))))
+  (flet ((active-color ()
+           (cl-cairo2:set-source-rgb 0.506 0.396 0.310))
+         (inactive-color ()
+           (cl-cairo2:set-source-rgb 0.659 0.616 0.588))
+         (black-color ()
+           (cl-cairo2:set-source-rgb 0 0 0)))
+    (with-slots (surface) decoration
+      (let ((width (width decoration))
+            (height (height decoration))
+            (active-surface (eq (active-surface (view mode)) surface))
+            (title (title surface)))
+        (cl-cairo2:set-line-width 1)
+        ;; Background
+        (if active-surface
+            (active-color)
+            (inactive-color))
+        (cl-cairo2:paint)
+        ;; Title
+        (black-color)
+        (cl-cairo2:move-to 17 11)
+        (cl-cairo2:show-text title)
+        ;; Header border
+        (if active-surface
+            (black-color)
+            (active-color))
+        (cl-cairo2:rectangle 0.5 0.5 (- width 1) 15)
+        (cl-cairo2:stroke)
+        ;; Square
+        (cl-cairo2:rectangle 2.5 2.5 11 11)
+        (cl-cairo2:stroke)
+        ;; Window border
+        (when active-surface
+          (cl-cairo2:rectangle 0.5 0.5 (- width 1) (- height 1)))))))
     
 
 (defmethod decoration-padding ((instance wmii-decoration))
   "Top, bottom, left, right"
-  (values 15 1 1 1))
+  (values 16 2 2 2))
 
 (defmethod resize-decoration ((decoration wmii-decoration) width height)
-  (cairo-surface-resize decoration width height)
+  (ulubis.cairo:resize decoration width height)
   (call-next-method))
 
 (defmethod redraw-decoration ((decoration wmii-decoration))
-  (cairo-surface-redraw decoration))
+  (ulubis.cairo:redraw decoration))
+
+;; Keybindings
+
+(defkeybinding (:pressed "h" Ctrl Shift) (mode) (wmii-mode)
+  (ulubis.wmii:move-window-left (layout mode)))
+
+(defkeybinding (:pressed "j" Ctrl Shift) (mode) (wmii-mode)
+  (ulubis.wmii:move-window-down (layout mode)))
+
+(defkeybinding (:pressed "k" Ctrl Shift) (mode) (wmii-mode)
+  (ulubis.wmii:move-window-up (layout mode)))
+
+(defkeybinding (:pressed "l" Ctrl Shift) (mode) (wmii-mode)
+  (ulubis.wmii:move-window-right (layout mode)))
+
+(defkeybinding (:pressed "h" Ctrl ) (mode) (wmii-mode)
+  (ulubis.wmii:move-cursor-left (layout mode)))
+
+(defkeybinding (:pressed "j" Ctrl ) (mode) (wmii-mode)
+  (ulubis.wmii:move-cursor-down (layout mode)))
+
+(defkeybinding (:pressed "k" Ctrl ) (mode) (wmii-mode)
+  (ulubis.wmii:move-cursor-up (layout mode)))
+
+(defkeybinding (:pressed "l" Ctrl ) (mode) (wmii-mode)
+  (ulubis.wmii:move-cursor-right (layout mode)))
+
+(defkeybinding (:pressed "d" Ctrl Shift) (mode) (wmii-mode)
+  (ulubis.wmii:set-column-mode (layout mode) :even))
+
+(defkeybinding (:pressed "s" Ctrl Shift) (mode) (wmii-mode)
+  (ulubis.wmii:set-column-mode (layout mode) :stack))
+

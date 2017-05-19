@@ -94,9 +94,9 @@
            (<= (cepl:s~ varjo::gl-frag-coord :x) (cepl:s~ bottom-right :x))
            (>= (cepl:s~ varjo::gl-frag-coord :y) (cepl:s~ top-left :y))
            (<= (cepl:s~ varjo::gl-frag-coord :y) (cepl:s~ bottom-right :y)))
-      (cepl:v! (cepl:s~ (cepl:texture texture tex-coord) :x)
+      (cepl:v! (cepl:s~ (cepl:texture texture tex-coord) :z)
                (cepl:s~ (cepl:texture texture tex-coord) :y)
-               (cepl:s~ (cepl:texture texture tex-coord) :z)
+               (cepl:s~ (cepl:texture texture tex-coord) :x)
                (* alpha (cepl:s~ (cepl:texture texture tex-coord) :w)))
       (cepl:v! 1 1 1 0)))
 
@@ -122,7 +122,7 @@
   (with-slots (x y width height) instance
     (with-rect (vertex-stream width height)
       (let ((texture (texture-of instance)))
-        (gl:viewport 0 0 (screen-width *compositor*) (screen-height *compositor*))
+        (gl:viewport 0 0 (desktop-width) (desktop-height))
         (map-g-default/fbo view-fbo #'mapping-pipeline vertex-stream
                            :origin (m4:translation (cepl:v! 0 0 0))
                            :origin-inverse (m4:translation (cepl:v! 0 0 0))
@@ -136,7 +136,7 @@
   (when (texture (wl-surface surface))
     (with-rect (vertex-stream (width (wl-surface surface)) (height (wl-surface surface)))
       (let ((texture (texture-of surface)))
-        (gl:viewport 0 0 (screen-width *compositor*) (screen-height *compositor*))
+        (gl:viewport 0 0 (desktop-width) (desktop-height))
         (destructuring-bind (top bottom left right) client-region
           (map-g-default/fbo view-fbo #'decoration-pipeline vertex-stream
                              :origin (m4:translation (cepl:v! (- (origin-x surface)) (- (origin-y surface)) 0))
@@ -145,16 +145,16 @@
                              :surface-translate (m4:translation (cepl:v! (x surface) (y surface) 0.0))
                              :texture texture
                              :top-left (cepl:v! left
-                                                (- (screen-height *compositor*) bottom))
+                                                (- (desktop-height) bottom))
                              :bottom-right (cepl:v! right
-                                                    (- (screen-height *compositor*) top))
+                                                    (- (desktop-height) top))
                              :alpha (opacity surface)))))
     (loop :for subsurface :in (reverse (subsurfaces (wl-surface surface)))
        :do (render subsurface view-fbo))))
 
 ;;; Dummy implementation
 
-(defclass empty-decoration (decoration cairo-surface)
+(defclass empty-decoration (decoration ulubis.cairo:surface)
   ())
 
 (defmethod initialize-instance :after ((instance empty-decoration) &key)
@@ -167,8 +167,8 @@
   (values 0 0 0 0))
 
 (defmethod resize-decoration ((decoration empty-decoration) width height)
-  (cairo-surface-resize decoration width height)
+  (ulubis.cairo:resize decoration width height)
   (call-next-method))
 
 (defmethod redraw-decoration ((decoration empty-decoration))
-  (cairo-surface-redraw decoration))
+  (ulubis.cairo:redraw decoration))

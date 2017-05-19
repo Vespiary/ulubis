@@ -23,7 +23,7 @@
   (setf (surfaces mode) (remove-if (lambda (surface)
 				     (not (texture (wl-surface surface))))
 				   (surfaces (view mode))))
-  (setf (projection mode) (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1000 -1000))
+  (setf (projection mode) (make-ortho 0 (desktop-width) (desktop-height) 0 1000 -1000))
   (setf (iso-animation mode) (enter-animation mode))
   (start-animation (iso-animation mode)))
 

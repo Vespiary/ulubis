@@ -7,22 +7,49 @@
 (defparameter *compositor* nil)
 
 (defun draw-screen ()
-  (let ((texture (texture-of (current-view *compositor*)))) ;; This will return a texture
+  (cepl:clear)
+  (let ((top-panel (find-panel :top))
+        (bottom-panel (find-panel :bottom)))
+    (when top-panel
+      (ulubis.cairo:redraw top-panel)
+      (map-to-viewport (texture-of top-panel)
+                       0 0
+                       (desktop-width)
+                       (ulubis.panels:height top-panel)
+                       #'panel-pipeline))
+    (map-to-viewport (texture-of (current-view *compositor*))
+                     0 (ulubis.panels:height top-panel)
+                     (desktop-width) (desktop-height))
+    (when bottom-panel
+      (ulubis.cairo:redraw bottom-panel)
+      (map-to-viewport (texture-of bottom-panel)
+                       0 (+ (ulubis.panels:height top-panel) (desktop-height))
+                       (desktop-width) (ulubis.panels:height bottom-panel)
+                       #'panel-pipeline)))
+  (gl:enable :blend)
+  (draw-cursor nil nil (pointer-x *compositor*) (pointer-y *compositor*)
+               (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1))
+  #+nil(draw-cursor (cursor-surface *compositor*) nil (pointer-x *compositor*) (pointer-y *compositor*)
+               (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1))
+  (swap-buffers (backend *compositor*))
+  (setf (slot-value *compositor* 'render-needed) nil)
+  (finish-callbacks))
+
+(defun finish-callbacks ()
+  (loop :for callback :in (callbacks *compositor*) :do
+     (when (find (client callback) waylisp::*clients*)
+       ;; We can end up getting a frame request after the client has been deleted
+       ;; if we try and send-done or destroy we will get a memory fault
+       (wl-callback-send-done (->resource callback) (get-milliseconds))
+       (wl-resource-destroy (->resource callback)))
+     (remove-resource callback))
+  (setf (callbacks *compositor*) nil))
+
+(defun map-to-viewport (texture x y width height &optional (shader #'passthrough-shader))
+  (cepl:with-viewport (cepl:make-viewport (list width height)
+                                          (list x (- (screen-height *compositor*) height y)))
     (with-screen (vs)
-      (cepl:clear)
-      (cepl:map-g #'passthrough-shader vs :texture texture)
-      (gl:enable :blend)
-      (draw-cursor (cursor-surface *compositor*) nil (pointer-x *compositor*) (pointer-y *compositor*) (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1))
-      (swap-buffers (backend *compositor*))
-      (setf (slot-value *compositor* 'render-needed) nil)
-      (loop :for callback :in (callbacks *compositor*) :do
-	 (when (find (client callback) waylisp::*clients*)
-	   ;; We can end up getting a frame request after the client has been deleted
-	   ;; if we try and send-done or destroy we will get a memory fault
-	   (wl-callback-send-done (->resource callback) (get-milliseconds))
-	   (wl-resource-destroy (->resource callback)))
-	 (remove-resource callback))
-      (setf (callbacks *compositor*) nil))))
+      (cepl:map-g shader vs :texture texture))))
 
 (defcallback input-callback :void ((fd :int) (mask :int) (data :pointer))
   (process-events (backend *compositor*)))
@@ -38,6 +65,7 @@
 	       (draw-screen))
 	     (wl-display-flush-clients (display *compositor*))
 	     (wl-event-loop-dispatch event-loop -1)
+             (mapc #'ulubis.panels:update ulubis.panels::*status-bars*)
 	     (animation::update-animations #'request-render)))))
 
 (defun main-loop-sdl (event-loop)
@@ -55,6 +83,7 @@
 		 (let ((event (syscall:poll pollfds 1 5)))
 		   (wl-event-loop-dispatch event-loop 0)
 		   (wl-display-flush-clients (display *compositor*))
+                   (mapc #'ulubis.panels:update ulubis.panels::*status-bars*)
 		   (animation::update-animations #'request-render)
 		   (process-events (backend *compositor*)))))))))
 
@@ -107,22 +136,15 @@
 (defun call-mouse-motion-handler (time x y)
   (when (show-cursor *compositor*)
     (request-render))
-  ;;(mouse-motion-handler (current-mode) time x y))
   (mouse-motion-handler (current-mode *compositor*) time x y))
 
 ;; Should be able to have "active" window without raising (focus follows mouse)
 (defun call-mouse-button-handler (time button state)
-  ;;(mouse-button-handler (current-mode) time button state))
   (mouse-button-handler (current-mode *compositor*) time button state))
 
 (defun window-event-handler ()
   (resize-compositor)
   (request-render))
-
-;; Kludge for SDL backend on multi-desktop WMs to avoid sticky mods.
-;; Seems like sway uses wl_keyboard_listener. We probably should use
-;; it too instead of the whole thing.
-(defvar *depressed-keys* (list))
 
 (defun call-keyboard-handler (time keycode state)
   (with-slots (xkb-input xkb-keybinds) *compositor*
@@ -153,17 +175,24 @@
             size)
       (setf (screen-width *compositor*) (first size)
             (screen-height *compositor*) (second size))
-      (update-ortho *compositor*)
+      (update-ortho)
       (mapc #'view-ensure-valid-fbo (views *compositor*))
       (dolist (mode (append (mapcan #'modes (views *compositor*))
                             (mapcar #'default-mode (views *compositor*))))
-        (size-changed mode (first size) (second size))))))
+        (size-changed mode (first size) (second size)))
+      (let ((top (find-panel :top))
+            (bottom (find-panel :bottom)))
+        (when top
+          (ulubis.cairo:resize top (desktop-width) 15))
+        (when bottom
+          (ulubis.cairo:resize bottom (desktop-width) 15))))))
 
 (defun try-load-user-init-file (filename)
   (format t "Trying to load ~A~%" filename)
   (when (probe-file filename)
     (format t "Loading ~A~%" filename)
-    (load filename)))
+    (let ((*package* (find-package :ulubis.config)))
+      (load filename))))
 
 (defun perform-user-init ()
   ;; Load user configuration file

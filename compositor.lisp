@@ -3,13 +3,7 @@
 
 (defvar *compositor* nil)
 
-(defun run-program (string)
-  #+sbcl
-  (sb-ext:run-program string '() :wait nil)
-  #+ccl
-  (ccl:run-program string '() :wait nil))
-
-(defclass compositor ()
+(defclass compositor (ulubis.panels:panel-container)
   ((running :accessor running :initarg :running :initform t)
    (backend :accessor backend :initarg :backend :initform nil)
    (display :accessor display :initarg :display :initform nil)
@@ -52,8 +46,33 @@
   (when (current-view compositor)
     (current-mode (current-view compositor))))
 
-(defun update-ortho (compositor)
-  (setf (ortho compositor) (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
+(defun find-panel (side)
+  "SIDE is :top or :bottom"
+  (loop :for container := (current-mode *compositor*) :then (ulubis.panels:delegate container)
+     :while container
+     :do (let ((panel (funcall (case side
+                                 (:top #'ulubis.panels:top-panel)
+                                 (:bottom #'ulubis.panels:bottom-panel))
+                               container)))
+           (unless (eq panel t)
+             (return-from find-panel panel))))
+  nil)
+
+(defun desktop-width ()
+  (screen-width *compositor*))
+
+(defun desktop-height ()
+  "Screen height without the panels"
+  (let ((panels (list (find-panel :top)
+                      (find-panel :bottom)))
+        (height (screen-height *compositor*)))
+    (dolist (panel panels)
+      (when panel
+        (decf height (ulubis.panels:height panel))))
+    height))
+
+(defun update-ortho ()
+  (setf (ortho *compositor*) (make-ortho 0 (desktop-width) (desktop-height) 0 1 -1)))
 	   
 (defun set-keymap (compositor r m l v o)
   (with-slots (xkb-input) compositor

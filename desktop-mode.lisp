@@ -108,7 +108,7 @@
     (start-animation animation)))
 
 (defmethod render ((mode desktop-mode) &optional view-fbo)
-  (let ((*ortho* (make-ortho 0 (screen-width *compositor*) (screen-height *compositor*) 0 1 -1)))
+  (let ((*ortho* (make-ortho 0 (desktop-width) (desktop-height) 0 1 -1)))
     (apply #'gl:clear-color (clear-color mode))
     (when view-fbo
       (cepl:clear view-fbo))

@@ -1,5 +1,15 @@
 ;;;; package.lisp
 
+(defpackage :ulubis.cairo
+  (:use :common-lisp)
+  (:export #:surface
+           #:draw-func
+           #:redraw
+           #:resize
+           #:cairo-surface
+           #:width
+           #:height))
+
 (defpackage :ulubis
   (:use :common-lisp
 	:cffi
@@ -13,23 +23,40 @@
 	:waylisp
 	:ulubis-backend
 	:animation)
-   ;; Interface for modes
-  (:export #:mode
-           #:defmode
-           #:init-mode
-           #:render
-           #:first-commit
-           #:mouse-motion-handler
-           #:mouse-button-handler
-   ;; Interface for configs
+  (:export #:*compositor*
+           #:texture-of
+           #:request-render
+           ;; Interface for configs
            #:push-view
            #:nth-view
+           #:views
+           #:current-view
            #:desktop-mode
+           #:wmii-mode
            #:defkeybinding
            #:alt
            #:shift
            #:ctrl
            #:gui
+           ))
+
+(defpackage :ulubis.panels
+  (:use :common-lisp
+        :ulubis.cairo)
+  (:export #:panel-container
+           #:top-panel
+           #:bottom-panel
+           #:panel
+           #:delegate
+           #:update
+           #:clear-color
+           #:height
+           #:left-bars
+           #:right-bars
+           #:bar
+           #:get-width
+           #:views-bar
+           #:status-bar
            ))
 
 (defpackage :ulubis.wmii
@@ -72,8 +99,12 @@
   (:import-from :ulubis
                 #:push-view
                 #:desktop-mode
+                #:wmii-mode
                 #:defkeybinding
                 #:alt
                 #:shift
                 #:ctrl
-                #:gui))
+                #:gui)
+  (:import-from :ulubis.panels
+                #:views-bar
+                #:status-bar))

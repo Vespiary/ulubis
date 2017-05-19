@@ -16,7 +16,7 @@
 
 (in-package :ulubis)
 
-(defclass view ()
+(defclass view (ulubis.panels:panel-container)
   ((modes :accessor modes :initarg :modes :initform nil)
    (default-mode :accessor default-mode :initarg :default-mode :initform nil)
    (surfaces :accessor surfaces :initarg :surfaces :initform nil)
@@ -29,12 +29,14 @@
 (defmethod init-view ((view view) &key)
   (view-ensure-valid-fbo view))
 
+(defmethod ulubis.panels:delegate ((view view))
+  *compositor*)
+
 (defun view-ensure-valid-fbo (view)
   "Recreate the FBO if it's too small for the current screen.
 Having an FBO which is too big doesn't seem to affect anything
 except a few kbytes of wasted memory."
-  (let ((new-size (list (screen-width *compositor*)
-                        (screen-height *compositor*))))
+  (let ((new-size (list (desktop-width) (desktop-height))))
     (labels ((make-fbo ()
                (let ((fbo (cepl:make-fbo (list 0 :dimensions new-size))))
                  (setf (fbo view) fbo)

@@ -22,7 +22,7 @@
            (*reposition-called* nil)
            (*activate-called* nil)
            (*last-active* nil))
-       ,@body)))
+       ,body)))
 
 (plan 9)
 

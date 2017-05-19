@@ -5,7 +5,7 @@
 
 (in-package :ulubis)
 
-(defclass mode ()
+(defclass mode (ulubis.panels:panel-container)
   ((blending-parameters :accessor blending-parameters :initarg :blending-parameters :initform nil)
    (focus-follows-mouse :accessor focus-follows-mouse :initarg :focus-follows-mouse :initform nil)))
 
@@ -40,7 +40,7 @@
   (cepl:map-g #'mapping-pipeline nil)
   (request-render))
 
-(defmethod first-configure ((mode mode) surface)
+(defmethod first-configure ((mode mode) toplevel)
   (with-wl-array array
     (zxdg-toplevel-v6-send-configure (->resource toplevel) 0 0 array)
     (zxdg-surface-v6-send-configure (->resource (zxdg-surface-v6 toplevel)) 0)))
@@ -59,6 +59,9 @@
 
 (defmethod remove-surface-from-mode ((mode mode) surface)
   )
+
+(defmethod ulubis.panels:delegate ((mode mode))
+  (view mode))
 
 (defun push-mode (view mode)
   (setf (view mode) view)
@@ -216,7 +219,8 @@
 	((resizing-surface *compositor*)
 	 (resize-surface pointer-x pointer-y (view mode) (resizing-surface *compositor*)))
 	;; 3. The pointer has left the current surface
-	((not (equalp old-surface current-surface))
+        #+nil
+        ((not (equalp old-surface current-surface))
 	 (setf (cursor-surface *compositor*) nil)
 	 (pointer-changed-surface mode pointer-x pointer-y old-surface current-surface))
 	;; 4. Pointer is over previous surface
@@ -225,18 +229,15 @@
 
 (defmethod mouse-button-handler ((mode mode) time button state)
   ;; Send active surface mouse button
-  (when (surface-under-pointer (pointer-x *compositor*)
-			       (pointer-y *compositor*)
-			       (view mode)) 
-    (let ((surface (surface-under-pointer (pointer-x *compositor*)
-			       (pointer-y *compositor*)
-			       (view mode)) ))
-      (when (and surface (pointer (client surface)))
-	(wl-pointer-send-button (->resource (pointer (client surface)))
-				0
-				time
-				button
-				state))))
+  (let ((surface (surface-under-pointer (pointer-x *compositor*)
+                                        (pointer-y *compositor*)
+                                        (view mode))))
+    (when (and surface (pointer (client surface)))
+      (wl-pointer-send-button (->resource (pointer (client surface)))
+                              0
+                              time
+                              button
+                              state)))
   ;; stop drag (It can be started by the client)
   (when (and (moving-surface *compositor*) (= button #x110) (= state 0))
     (setf (moving-surface *compositor*) nil)))

@@ -96,12 +96,16 @@
 
 (defun add-surface (surface layout)
   (let ((window (make-instance 'window :surface surface))
-        (*layout* layout))
+        (*layout* layout)
+        (created-column nil))
     (with-slots (columns active-column) layout
       (unless columns
-        (create-column layout))
+        (create-column layout)
+        (setf created-column t))
       (add-window window active-column)
-      (reposition-windows active-column)
+      (if created-column
+          (reposition-all-windows)
+          (reposition-windows active-column))
       (call-activate-surface (surface (active-window active-column))))))
 
 (defun create-column (layout &key end)
@@ -113,8 +117,7 @@
                  (push new-column columns)))
             (t
              (setf columns (list new-column))
-             (setf active-column new-column)))
-      (reposition-all-windows))))
+             (setf active-column new-column))))))
 
 (defgeneric remove-window (window target))
 (defgeneric remove-surface (surface target))
@@ -174,37 +177,49 @@
         (call-activate-surface (active-window active-column))))))
 
 (defun move-window-left (layout)
-  (let ((*layout* layout))
+  (let ((*layout* layout)
+        (reposition-all nil))
     (with-slots (columns active-column) layout
       (when (= (length columns) 0)
         (return-from move-window-left))
       (when (eq active-column (first columns))
         (when (= (length (windows active-column)) 1)
           (return-from move-window-left))
-        (create-column layout))
+        (create-column layout)
+        (setf reposition-all t))
       (let ((other-column (list-prev active-column columns)))
         (add-window (active-window active-column) other-column)
         (remove-window (active-window active-column) active-column)
         (when (null (windows active-column))
-          (remove-column active-column layout))
+          (remove-column active-column layout)
+          (setf reposition-all t))
         (setf active-column other-column)
+        (if reposition-all
+            (reposition-all-windows)
+            (reposition-windows active-column))
         (call-activate-surface (active-window active-column))))))
 
 (defun move-window-right (layout)
-  (let ((*layout* layout))
+  (let ((*layout* layout)
+        (reposition-all nil))
     (with-slots (columns active-column) layout
       (when (= (length columns) 0)
         (return-from move-window-right))
       (when (eq active-column (first (last columns)))
         (when (= (length (windows active-column)) 1)
           (return-from move-window-right))
-        (create-column layout :end t))
+        (create-column layout :end t)
+        (setf reposition-all t))
       (let ((other-column (list-next active-column columns)))
         (add-window (active-window active-column) other-column)
         (remove-window (active-window active-column) active-column)
         (when (null (windows active-column))
-          (remove-column active-column layout))
+          (remove-column active-column layout)
+          (setf reposition-all t))
         (setf active-column other-column)
+        (if reposition-all
+            (reposition-all-windows)
+            (reposition-windows active-column))
         (call-activate-surface (active-window active-column))))))
 
 (defgeneric move-window-up (target))
