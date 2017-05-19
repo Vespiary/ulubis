@@ -249,13 +249,17 @@
           (:left (incf i -1))
           (:right (incf i 1))
           (t (error "Side must be either :left or :right")))
+        (when (< i 0)
+          (return-from resize-column))
         (let ((other-column (nth i columns)))
           (unless other-column
             (return-from resize-column))
-          (incf (width active-column) by) 
-          (incf (width other-column) (- by))
-          (reposition-windows active-column)
-          (reposition-windows other-column))))))
+          (when (and (> (+ (width active-column) by) 0)
+                     (> (- (width other-column) by) 0))
+            (incf (width active-column) by) 
+            (decf (width other-column) by)
+            (reposition-windows active-column)
+            (reposition-windows other-column)))))))
 
 (defun set-column-mode (layout mode)
   (let ((*layout* layout))
@@ -400,7 +404,7 @@
                (:tabs (if (eq window (active-window column))
                           (call-reposition-window (surface window)
                                                   0 (height *layout*) left right
-                                                  :tabs (mapcar #'surface (columns *layout*)))
+                                                  :tabs (surfaces column))
                           (call-reposition-window (surface window)
                                                   0 0 0 0
                                                   :visible nil))))))))
@@ -412,6 +416,7 @@
 
 (defun reposition-to-fullscreen (window)
   (call-reposition-window (surface window)
-                          0 (height *layout*) 0 (width *layout*)
+                          0 (ulubis::screen-height ulubis:*compositor*)
+                          0 (ulubis::screen-width ulubis:*compositor*)
                           :fullscreen t))
 

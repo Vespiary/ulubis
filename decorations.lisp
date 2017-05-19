@@ -33,6 +33,9 @@
   (setf (y (decoration instance)) new-y)
   (update-decorated-position instance :new-y new-y))
 
+(defmethod wl-surface ((surface decorated-surface))
+  (wl-surface (surface surface)))
+
 (defmethod resize ((instance decorated-surface) width height time &key activate? maximize fullscreen)
   (with-slots (decoration) instance
     (setf (width instance) width)
@@ -60,14 +63,18 @@
   (unless new-y
     (setf new-y (y decorated)))
   (with-slots (decoration surface) decorated
-    (multiple-value-bind (top bottom left right) (decoration-padding decoration)
-      (declare (ignore bottom right))
-      (setf (y surface)
-            (+ new-y top
-               (- (window-geometry-y (window-geometry surface)))))
-      (setf (x surface)
-            (+ new-x left
-               (- (window-geometry-x (window-geometry surface))))))))
+    (if (eq (state decorated) :borderless)
+        (progn
+          (setf (y surface) new-y)
+          (setf (x surface) new-x))
+        (multiple-value-bind (top bottom left right) (decoration-padding decoration)
+          (declare (ignore bottom right))
+          (setf (y surface)
+                (+ new-y top
+                   (- (window-geometry-y (window-geometry surface)))))
+          (setf (x surface)
+                (+ new-x left
+                   (- (window-geometry-x (window-geometry surface)))))))))
 
 (defclass decoration ()
   ((x :accessor x :initform 0)
@@ -107,8 +114,7 @@
   (case (state instance)
     (:borderless (render (surface instance) view-fbo))
     (:folded (render (decoration instance) view-fbo))
-    (nil nil)
-    (t (render (decoration instance) view-fbo)
+    ((t) (render (decoration instance) view-fbo)
        (multiple-value-bind (width height) (underlying-surface-size instance)
          (multiple-value-bind (top bottom left right) (decoration-padding (decoration instance))
            (render-decorated-underlying-window (surface instance)

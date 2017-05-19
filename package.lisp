@@ -46,6 +46,7 @@
   (:export #:panel-container
            #:top-panel
            #:bottom-panel
+           #:render-panels
            #:panel
            #:delegate
            #:update

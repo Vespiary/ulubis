@@ -54,7 +54,7 @@
 (defmethod size-changed ((mode mode) width height)
   )
 
-(defmethod allow-move ((mode mode) surface)
+(defmethod allow-move? ((mode mode) surface)
   t)
 
 (defmethod remove-surface-from-mode ((mode mode) surface)
@@ -177,12 +177,13 @@
   (setf (pointer-surface *compositor*) new-surface)
   (when (focus-follows-mouse mode)
     (activate-surface new-surface mode))
-  (when (and new-surface (pointer (client new-surface)))
-    (wl-pointer-send-enter (->resource (pointer (client new-surface)))
-			   0
-			   (->resource (wl-surface new-surface))
-			   (round (* 256 (- x (x new-surface))))
-			   (round (* 256 (- y (y new-surface)))))))
+  (unless (typep mode 'wmii-mode)
+    (when (and new-surface (pointer (client new-surface)))
+      (wl-pointer-send-enter (->resource (pointer (client new-surface)))
+                             0
+                             (->resource (wl-surface new-surface))
+                             (round (* 256 (- x (x new-surface))))
+                             (round (* 256 (- y (y new-surface))))))))
 
 (defun send-surface-pointer-motion (x y time surface)
   (when (and surface (pointer (client surface)))
@@ -219,7 +220,6 @@
 	((resizing-surface *compositor*)
 	 (resize-surface pointer-x pointer-y (view mode) (resizing-surface *compositor*)))
 	;; 3. The pointer has left the current surface
-        #+nil
         ((not (equalp old-surface current-surface))
 	 (setf (cursor-surface *compositor*) nil)
 	 (pointer-changed-surface mode pointer-x pointer-y old-surface current-surface))

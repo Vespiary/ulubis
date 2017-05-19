@@ -3,7 +3,8 @@
 
 (defclass panel-container ()
   ((top-panel :accessor top-panel :initarg :top-panel :initform t)
-   (bottom-panel :accessor bottom-panel :initarg :bottom-panel :initform t))
+   (bottom-panel :accessor bottom-panel :initarg :bottom-panel :initform t)
+   (render-panels :accessor render-panels :initarg :render-panels :initform t))
   (:documentation "Each slot can be
 T - delegate panel (mode -> view -> compositor)
 nil - don't render any panel
@@ -13,6 +14,14 @@ PANEL instance - render the instance"))
   (:documentation "Get next object in hierarchy. NIL if it's the root"))
 (defmethod delegate ((instance panel-container))
   nil)
+
+(defmethod top-panel :around ((container panel-container))
+  (when (render-panels container)
+    (call-next-method)))
+
+(defmethod bottom-panel :around ((container panel-container))
+  (when (render-panels container)
+    (call-next-method)))
 
 (defclass panel (ulubis.cairo:surface)
   ((height :accessor height :initarg :height :initform 15)

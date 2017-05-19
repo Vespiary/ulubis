@@ -14,15 +14,16 @@
   (setf *last-active* surface)
   (push surface *activate-called*))
 
-(defmacro test-layout ((layout-var name) &body body)
-  `(subtest ,name
-     (let ((,layout-var (make-instance 'layout
-                                       :reposition-callback #'test-reposition-callback
-                                       :activate-callback #'test-activate-callback))
-           (*reposition-called* nil)
-           (*activate-called* nil)
-           (*last-active* nil))
-       ,body)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defmacro test-layout ((layout-var name) &body body)
+    `(subtest ,name
+       (let ((,layout-var (make-instance 'layout
+                                         :reposition-callback #'test-reposition-callback
+                                         :activate-callback #'test-activate-callback))
+             (*reposition-called* nil)
+             (*activate-called* nil)
+             (*last-active* nil))
+         ,@body))))
 
 (plan 9)
 

@@ -32,30 +32,33 @@
 
 (defmethod allow-move? ((mode wmii-mode) surface)
   "Allow moving of unmanaged windows"
-  (not (member surface (ulubis.wmii:surfaces (layout mode))
-               :key #'surface)))
+  (not (surface-managed-p mode surface)))
+
+(defmethod ulubis.panels:render-panels ((mode wmii-mode))
+  (not (fullscreen-surface mode)))
 
 (defun wmii-reposition-window (mode surface top bottom left right
                                &key (render-surface t) (visible t) fullscreen tabs)
   (unless visible
     (setf (state surface) nil)
     (return-from wmii-reposition-window))
-  (setf (x surface) left)
-  (setf (y surface) top)
   (cond (fullscreen
          (setf (state surface) :borderless)
          (setf (fullscreen-surface mode) surface))
+        ((not render-surface)
+         (setf (state surface) :folded))
         (t
          (setf (state surface) t)
          (setf (fullscreen-surface mode) nil)))
-  (if render-surface
-      (setf (state surface) t)
-      (setf (state surface) :folded))
   (setf (tabs (decoration surface)) tabs)
-  (when render-surface
-    (resize surface (- right left) (- bottom top) (get-milliseconds)
-            :activate? (eq (surface surface) (active-surface (view mode)))
-            :fullscreen t)))
+  (resize surface (- right left) (- bottom top) (get-milliseconds)
+          :activate? (eq (surface surface) (active-surface (view mode)))
+          :fullscreen t)
+  (setf (x surface) left)
+  (setf (y surface) top))
+
+(defmethod active-surface ((mode wmii-mode))
+  (find (active-surface (view mode)) (surfaces mode) :key #'surface))
 
 (defmethod size-changed ((mode wmii-mode) width height)
   (setf (width (layout mode)) (desktop-width))
@@ -93,14 +96,53 @@
         (activate-surface (surface decorated) mode)
         (ulubis.wmii:set-active-surface decorated (layout mode))
 	(request-render))))
+  ;; Drag window
+  (when (and (= button #x110) (= state 1) (= Gui (mods-depressed (mods *compositor*))))
+    (let ((surface (decorated-surface-under-pointer mode (pointer-x *compositor*) (pointer-y *compositor*))))
+      (when surface
+	(setf (moving-surface *compositor*)
+	      (make-move-op :surface surface
+			    :surface-x (x surface)
+			    :surface-y (y surface)
+			    :pointer-x (pointer-x *compositor*)
+			    :pointer-y (pointer-y *compositor*))))))
+  ;; Resize window
+  (when (and (= button #x110) (= state 1) (= (+ Gui Shift) (mods-depressed (mods *compositor*))))
+    (let ((surface (decorated-surface-under-pointer mode (pointer-x *compositor*) (pointer-y *compositor*))))
+      (let ((width (if (input-region (wl-surface surface))
+		       (width (first (last (rects (input-region (wl-surface surface))))))
+		       (width (wl-surface surface))))
+	    (height (if (input-region (wl-surface surface))
+			(height (first (last (rects (input-region (wl-surface surface))))))
+			(height (wl-surface surface)))))
+	(setf (resizing-surface *compositor*) (make-resize-op :surface surface
+							      :pointer-x (pointer-x *compositor*)
+							      :pointer-y (pointer-y *compositor*)
+							      :surface-width width
+							      :surface-height height)))))
+  ;; Stop resizing
+  (when (and (resizing-surface *compositor*) (= button #x110) (= state 0))
+    (setf (resizing-surface *compositor*) nil))
+  ;; Send button to client
   (call-next-method))
 
 (defun decorated-surface-under-pointer (mode x y)
-  (dolist (surface (surfaces mode))
+  (dolist (surface (floating-surfaces mode))
+    (when (and (<= (x surface) x (+ (x surface) (width surface)))
+               (<= (y surface) y (+ (y surface) (height surface))))
+      (return-from decorated-surface-under-pointer surface)))
+  (dolist (surface (ulubis.wmii:surfaces (layout mode)))
     ;; Since tiled surfaces never intersect it's enough to find the first one without checking order
     (when (and (<= (x surface) x (+ (x surface) (width surface)))
-               (<= (y surface) y (+ (y surface) (width surface))))
-      (return-from decorated-surface-under-pointer surface))))
+               (<= (y surface) y (+ (y surface) (height surface))))
+      (return-from decorated-surface-under-pointer surface)))
+  nil)
+
+(defun surface-managed-p (mode surface)
+  (find surface (ulubis.wmii:surfaces (layout mode))))
+
+(defun floating-surfaces (mode)
+  (set-difference (surfaces mode) (ulubis.wmii:surfaces (layout mode))))
 
 (defmethod render ((mode wmii-mode) &optional view-fbo)
   (let ((*ortho* (make-ortho 0 (desktop-width) (desktop-height) 0 1 -1)))
@@ -108,15 +150,17 @@
     (when view-fbo
       (cepl:clear view-fbo))
     (cepl:with-blending (blending-parameters mode)
-      (let* ((managed-surfaces (ulubis.wmii:surfaces (layout mode)))
-             (floating-surfaces (set-difference (surfaces mode) managed-surfaces)))
-        ;; Managed surfaces are drawn in no particular order
-        (mapcar (lambda (surface)
-                  (render surface view-fbo))
-                managed-surfaces)
-        (mapcar (lambda (surface)
-                  (render surface view-fbo))
-                (reverse floating-surfaces))))))
+      (if (fullscreen-surface mode)
+          (render (fullscreen-surface mode) view-fbo)
+          (let* ((managed-surfaces (ulubis.wmii:surfaces (layout mode)))
+                 (floating-surfaces (set-difference (surfaces mode) managed-surfaces)))
+            ;; Managed surfaces are drawn in no particular order
+            (mapcar (lambda (surface)
+                      (render surface view-fbo))
+                    managed-surfaces)
+            (mapcar (lambda (surface)
+                      (render surface view-fbo))
+                    (reverse floating-surfaces)))))))
 
 ;;; Decorations
 
@@ -135,33 +179,66 @@
            (cl-cairo2:set-source-rgb 0.659 0.616 0.588))
          (black-color ()
            (cl-cairo2:set-source-rgb 0 0 0)))
-    (with-slots (surface) decoration
+    (with-slots (surface tabs) decoration
       (let ((width (width decoration))
             (height (height decoration))
             (active-surface (eq (active-surface (view mode)) surface))
             (title (title surface)))
         (cl-cairo2:set-line-width 1)
-        ;; Background
         (if active-surface
             (active-color)
             (inactive-color))
         (cl-cairo2:paint)
-        ;; Title
-        (black-color)
-        (cl-cairo2:move-to 17 11)
-        (cl-cairo2:show-text title)
-        ;; Header border
-        (if active-surface
-            (black-color)
-            (active-color))
-        (cl-cairo2:rectangle 0.5 0.5 (- width 1) 15)
-        (cl-cairo2:stroke)
-        ;; Square
-        (cl-cairo2:rectangle 2.5 2.5 11 11)
-        (cl-cairo2:stroke)
+        (if tabs
+            (let ((tab-width (truncate width (length tabs))))
+              (loop :for tab :in tabs
+                 :for i :from 0
+                 :do (wmii-decoration-draw-tab (* i tab-width) 0
+                                               tab-width height
+                                               :title (title (surface tab))
+                                               :active-tab (eq (decoration tab) decoration)
+                                               :active-surface active-surface)))
+            (wmii-decoration-draw-tab 0 0 width height
+                                      :title title
+                                      :active-tab t
+                                      :active-surface active-surface))
         ;; Window border
-        (when active-surface
-          (cl-cairo2:rectangle 0.5 0.5 (- width 1) (- height 1)))))))
+        #+nil(when active-surface
+          (cl-cairo2:set-source-rgb 0 0 0)
+          (cl-cairo2:rectangle 0.5 15.5 (- width 1) (- height 16))
+          (cl-cairo2:stroke))))))
+
+(defun wmii-decoration-draw-tab (x y width height &key title active-tab active-surface)
+  (flet ((active-color ()
+           (cl-cairo2:set-source-rgb 0.506 0.396 0.310))
+         (inactive-color ()
+           (cl-cairo2:set-source-rgb 0.659 0.616 0.588))
+         (black-color ()
+           (cl-cairo2:set-source-rgb 0 0 0)))
+    (cl-cairo2:rectangle x y width height)
+    (cl-cairo2:clip)
+    (cl-cairo2:translate x y)
+    ;; Background
+    (if (and active-tab active-surface)
+        (active-color)
+        (inactive-color))
+    (cl-cairo2:paint)
+    ;; Title
+    (black-color)
+    (cl-cairo2:move-to 17 11)
+    (cl-cairo2:show-text title)
+    ;; Header border
+    (if active-tab
+        (cl-cairo2:set-source-rgb 1 1 1)
+        (active-color))
+    (cl-cairo2:rectangle 0.5 0.5 (- width 1) height)
+    (cl-cairo2:stroke)
+    ;; Square
+    (black-color)
+    (cl-cairo2:rectangle 2.5 2.5 11 11)
+    (cl-cairo2:stroke)
+    (cl-cairo2:translate (- x) (- y))
+    (cl-cairo2:reset-clip)))
     
 
 (defmethod decoration-padding ((instance wmii-decoration))
@@ -178,32 +255,74 @@
 ;; Keybindings
 
 (defkeybinding (:pressed "h" Ctrl Shift) (mode) (wmii-mode)
-  (ulubis.wmii:move-window-left (layout mode)))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:move-window-left (layout mode))))
 
 (defkeybinding (:pressed "j" Ctrl Shift) (mode) (wmii-mode)
-  (ulubis.wmii:move-window-down (layout mode)))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:move-window-down (layout mode))))
 
 (defkeybinding (:pressed "k" Ctrl Shift) (mode) (wmii-mode)
-  (ulubis.wmii:move-window-up (layout mode)))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:move-window-up (layout mode))))
 
 (defkeybinding (:pressed "l" Ctrl Shift) (mode) (wmii-mode)
-  (ulubis.wmii:move-window-right (layout mode)))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:move-window-right (layout mode))))
 
 (defkeybinding (:pressed "h" Ctrl ) (mode) (wmii-mode)
-  (ulubis.wmii:move-cursor-left (layout mode)))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:move-cursor-left (layout mode))))
 
 (defkeybinding (:pressed "j" Ctrl ) (mode) (wmii-mode)
-  (ulubis.wmii:move-cursor-down (layout mode)))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:move-cursor-down (layout mode))))
 
 (defkeybinding (:pressed "k" Ctrl ) (mode) (wmii-mode)
-  (ulubis.wmii:move-cursor-up (layout mode)))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:move-cursor-up (layout mode))))
 
 (defkeybinding (:pressed "l" Ctrl ) (mode) (wmii-mode)
-  (ulubis.wmii:move-cursor-right (layout mode)))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:move-cursor-right (layout mode))))
 
 (defkeybinding (:pressed "d" Ctrl Shift) (mode) (wmii-mode)
-  (ulubis.wmii:set-column-mode (layout mode) :even))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:set-column-mode (layout mode) :even)))
 
 (defkeybinding (:pressed "s" Ctrl Shift) (mode) (wmii-mode)
-  (ulubis.wmii:set-column-mode (layout mode) :stack))
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:set-column-mode (layout mode) :stack)))
 
+(defkeybinding (:pressed "a" Ctrl Shift) (mode) (wmii-mode)
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:set-column-mode (layout mode) :tabs)))
+
+(defkeybinding (:pressed "u" Ctrl ) (mode) (wmii-mode)
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:resize-column (layout mode) :left 0.1)))
+
+(defkeybinding (:pressed "i" Ctrl ) (mode) (wmii-mode)
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:resize-column (layout mode) :right 0.1)))
+
+(defkeybinding (:pressed "u" Ctrl Shift) (mode) (wmii-mode)
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:resize-column (layout mode) :right -0.1)))
+
+(defkeybinding (:pressed "i" Ctrl Shift) (mode) (wmii-mode)
+  (unless (fullscreen-surface mode)
+    (ulubis.wmii:resize-column (layout mode) :left -0.1)))
+
+(defkeybinding (:pressed "f" Ctrl Shift) (mode) (wmii-mode)
+  (ulubis.wmii:toggle-fullscreen (layout mode)))
+
+(defkeybinding (:pressed "c" Ctrl Shift) (mode) (wmii-mode)
+  (let ((active-surface (active-surface (view mode))))
+    (kill-client (client active-surface))))
+
+(defkeybinding (:pressed "Space" Ctrl Shift) (mode) (wmii-mode)
+  (let ((active-surface (active-surface mode)))
+    (if (surface-managed-p mode active-surface)
+        (ulubis.wmii:remove-surface active-surface (layout mode))
+        (ulubis.wmii:add-surface active-surface (layout mode)))))

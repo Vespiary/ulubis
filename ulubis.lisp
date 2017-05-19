@@ -94,10 +94,12 @@
 	(waylisp:resize surface width height (get-milliseconds) :activate? nil))))
 
 (defun resize-surface-absolute (surface view width height)
-  (when (> width 32) (> height 32)
-    (if (equalp surface (active-surface view))
-	(resize surface width height (get-milliseconds) :activate? t)
-	(resize surface width height (get-milliseconds) :activate? nil))))
+  (when (and (> width 32) (> height 32))
+    (let ((activate (eq surface (active-surface view))))
+      (resize surface width height (get-milliseconds)
+              :activate? activate
+              :maximize (requested-max (surface surface))
+              :fullscreen (requested-full (surface surface))))))
 
 #|
 (defun deactivate-surface (surface)
@@ -127,6 +129,9 @@
 	 (when (or (ulubis-xdg-surface? surface) (ulubis-zxdg-toplevel? surface))
 	   (waylisp:activate surface (get-milliseconds))))))))
 |#
+
+(defun kill-client (client)
+  (nix:kill (wayland-server-core:pid-of-client (->client client)) nix:sigkill))
 
 (defun activate-surface (surface mode)
   (with-slots (active-surface) (view mode)
