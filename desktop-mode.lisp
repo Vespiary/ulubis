@@ -85,6 +85,10 @@
 (defkeybinding (:pressed "Tab" Gui) (mode) (desktop-mode)
   (push-mode (view mode) (make-instance 'alt-tab-mode)))
 
+(defmethod first-configure ((mode desktop-mode) (surface isurface))
+  (resize surface (width (wl-surface surface)) (height (wl-surface surface))
+          (get-milliseconds) :activate? t :fullscreen nil :maximize nil))
+
 (defmethod first-commit ((mode desktop-mode) (surface isurface))
   (let ((animation (sequential-animation
 		    (lambda ()

@@ -98,8 +98,8 @@
     (let ((activate (eq surface (active-surface view))))
       (resize surface width height (get-milliseconds)
               :activate? activate
-              :maximize (requested-max (surface surface))
-              :fullscreen (requested-full (surface surface))))))
+              :maximize (requested-max surface)
+              :fullscreen (requested-full surface)))))
 
 #|
 (defun deactivate-surface (surface)
@@ -130,8 +130,8 @@
 	   (waylisp:activate surface (get-milliseconds))))))))
 |#
 
-(defun kill-client (client)
-  (nix:kill (wayland-server-core:pid-of-client (->client client)) nix:sigkill))
+(defun kill-client (client &key (sig 15))
+  (nix:kill (wayland-server-core:pid-of-client (->client client)) sig))
 
 (defun activate-surface (surface mode)
   (with-slots (active-surface) (view mode)
@@ -196,8 +196,7 @@
   (format t "Trying to load ~A~%" filename)
   (when (probe-file filename)
     (format t "Loading ~A~%" filename)
-    (let ((*package* (find-package :ulubis.config)))
-      (load filename))))
+    (load filename)))
 
 (defun perform-user-init ()
   ;; Load user configuration file

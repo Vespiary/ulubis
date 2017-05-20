@@ -36,6 +36,12 @@
 (defmethod wl-surface ((surface decorated-surface))
   (wl-surface (surface surface)))
 
+(defmethod requested-max ((surface decorated-surface))
+  (requested-max (surface surface)))
+
+(defmethod requested-full ((surface decorated-surface))
+  (requested-full (surface surface)))
+
 (defmethod resize ((instance decorated-surface) width height time &key activate? maximize fullscreen)
   (with-slots (decoration) instance
     (setf (width instance) width)

@@ -81,7 +81,7 @@ called more often than TEXTURE-OF"))
             (cepl:push-g cepl-data gl-texture)
             (setf gl-texture (cepl:make-texture cepl-data
                                                 :pixel-format (cepl.types::make-pixel-format
-                                                               :components :bgra
+                                                               :components :rgba
                                                                :type :uint8
                                                                :normalize t
                                                                :sizes nil

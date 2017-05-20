@@ -1,7 +1,7 @@
 
 (in-package :ulubis.wmii)
 
-(declaim (optimize (debug 3)))
+(declaim (optimize debug))
 
 (defparameter *header-height* 15)
 (defparameter *layout* nil)
@@ -277,10 +277,10 @@
 
 (defgeneric set-active-surface (surface target))
 (defmethod set-active-surface (surface (target layout))
-  (dolist (column (columns target))
-    (when (set-active-surface surface column)
-      (setf (active-column target) column)
-      (let ((*layout* target))
+  (let ((*layout* target))
+    (dolist (column (columns target))
+      (when (set-active-surface surface column)
+        (setf (active-column target) column)
         (reposition-windows column))
       (return-from set-active-surface t))))
 
@@ -361,6 +361,7 @@
   (dolist (window (windows target))
     (when (set-active-surface surface window)
       (setf (active-window target) window)
+      (call-activate-surface surface)
       (return-from set-active-surface t))))
 
 (defun column-bounds (column)

@@ -29,6 +29,8 @@
            ;; Interface for configs
            #:push-view
            #:nth-view
+           #:switch-to-nth-view
+           #:move-surface-to-nth-view
            #:views
            #:current-view
            #:desktop-mode
@@ -102,6 +104,8 @@
                 #:desktop-mode
                 #:wmii-mode
                 #:defkeybinding
+                #:switch-to-nth-view
+                #:move-surface-to-nth-view
                 #:alt
                 #:shift
                 #:ctrl

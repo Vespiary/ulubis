@@ -54,6 +54,8 @@
   (resize surface (- right left) (- bottom top) (get-milliseconds)
           :activate? (eq (surface surface) (active-surface (view mode)))
           :fullscreen t)
+  (when (first-commit? (wl-surface (surface surface)))
+    (setf (state surface) nil))
   (setf (x surface) left)
   (setf (y surface) top))
 
@@ -76,12 +78,15 @@
 (defmethod first-configure ((mode wmii-mode) (surface zxdg-toplevel-v6))
   (let ((decorated (make-instance 'decorated-surface
                                   :decoration (make-instance 'wmii-decoration :mode mode)
+                                  :state nil
                                   :surface surface)))
     (push decorated (surfaces mode))
     (ulubis.wmii:add-surface decorated (layout mode))))
 
 (defmethod first-commit ((mode wmii-mode) surface)
-  (activate-surface surface mode))
+  (let ((decorated (find surface (surfaces mode) :key #'surface)))
+    (setf (state decorated) t)
+    (activate-surface surface mode)))
 
 (defmethod commit ((mode wmii-mode) surface)
   (update-decorated-position (find-decorated mode surface)))
@@ -189,24 +194,28 @@
             (active-color)
             (inactive-color))
         (cl-cairo2:paint)
+        ;; Window border
+        (draw-outset 0.5 0.5 (- width 1) (- height 1))
+        ;; Header
         (if tabs
             (let ((tab-width (truncate width (length tabs))))
               (loop :for tab :in tabs
                  :for i :from 0
                  :do (wmii-decoration-draw-tab (* i tab-width) 0
-                                               tab-width height
+                                               tab-width 15
                                                :title (title (surface tab))
-                                               :active-tab (eq (decoration tab) decoration)
-                                               :active-surface active-surface)))
-            (wmii-decoration-draw-tab 0 0 width height
+                                               :active-tab nil
+                                               :active-surface active-surface))
+              (wmii-decoration-draw-tab (* (position decoration tabs :key #'decoration) tab-width) 0
+                                        tab-width 15
+                                        :title title
+                                        :active-tab t
+                                        :active-surface active-surface))
+            (wmii-decoration-draw-tab 0 0 width 15
                                       :title title
                                       :active-tab t
                                       :active-surface active-surface))
-        ;; Window border
-        #+nil(when active-surface
-          (cl-cairo2:set-source-rgb 0 0 0)
-          (cl-cairo2:rectangle 0.5 15.5 (- width 1) (- height 16))
-          (cl-cairo2:stroke))))))
+        ))))
 
 (defun wmii-decoration-draw-tab (x y width height &key title active-tab active-surface)
   (flet ((active-color ()
@@ -228,17 +237,29 @@
     (cl-cairo2:move-to 17 11)
     (cl-cairo2:show-text title)
     ;; Header border
-    (if active-tab
-        (cl-cairo2:set-source-rgb 1 1 1)
-        (active-color))
-    (cl-cairo2:rectangle 0.5 0.5 (- width 1) height)
-    (cl-cairo2:stroke)
+    (draw-outset 0.5 0.5 (- width 1) (- height 1) :bottom (not active-tab))
     ;; Square
     (black-color)
     (cl-cairo2:rectangle 2.5 2.5 11 11)
     (cl-cairo2:stroke)
     (cl-cairo2:translate (- x) (- y))
     (cl-cairo2:reset-clip)))
+
+(defun draw-outset (x y width height &key
+                                       (highlight '(1 1 1))
+                                       (shadow '(0.506 0.396 0.310))
+                                       (bottom t))
+  (cl-cairo2:move-to x (+ y height))
+  (cl-cairo2:line-to x y)
+  (cl-cairo2:line-to (+ x width) y)
+  (apply #'cl-cairo2:set-source-rgb highlight)
+  (cl-cairo2:stroke)
+  (cl-cairo2:move-to (+ x width) y)
+  (cl-cairo2:line-to (+ x width) (+ y height))
+  (when bottom
+    (cl-cairo2:line-to x (+ y height)))
+  (apply #'cl-cairo2:set-source-rgb shadow)
+  (cl-cairo2:stroke))
     
 
 (defmethod decoration-padding ((instance wmii-decoration))
@@ -319,7 +340,8 @@
 
 (defkeybinding (:pressed "c" Ctrl Shift) (mode) (wmii-mode)
   (let ((active-surface (active-surface (view mode))))
-    (kill-client (client active-surface))))
+    (when active-surface
+      (kill-client (client active-surface)))))
 
 (defkeybinding (:pressed "Space" Ctrl Shift) (mode) (wmii-mode)
   (let ((active-surface (active-surface mode)))

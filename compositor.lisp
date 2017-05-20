@@ -140,7 +140,7 @@
      :when (view-has-surface? surface view) :collect it))
 
 (defun remove-surface-from-view (surface view)
-  (when (equalp (active-surface view) surface)
+  (when (eq (active-surface view) surface)
     (setf (active-surface view) nil))
   (setf (surfaces view) (remove surface (surfaces view)))
   (dolist (mode (modes view))
@@ -233,12 +233,23 @@
 ;;; Changing views
 
 (defun nth-view (n)
-  "Sets active view clamping it to total number of views"
   (let* ((views (views *compositor*))
          (count (length views)))
     (when (< n 0)
       (setf n 0))
     (when (>= n count)
       (setf n (- count 1)))
-    (setf (current-view *compositor*) (nth n views)))
+    (nth n views)))
+
+(defun switch-to-nth-view (n)
+  "Sets active view clamping it to total number of views"
+  (setf (current-view *compositor*) (nth-view n))
   (request-render))
+
+(defun move-surface-to-nth-view (n)
+  (let ((surface (active-surface (current-view *compositor*))))
+    (when surface
+      (remove-surface-from-view surface (first (views-with-surface surface)))
+      (add-surface (nth-view n) surface)
+      (first-configure (current-mode (nth-view n)) surface))))
+
